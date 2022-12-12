@@ -163,7 +163,7 @@ myioctl
   int*	arg )
 {   
     int		rc;
-    extern int	errno;
+    #include <errno.h>
     
     rc = ioctl(fd, command, arg);  
     if (rc < 0)
