@@ -60,8 +60,7 @@ void I_InitGraphics() {
 	palette = malloc(256 * 3); //256 entries, each of them 24-bit
 	
 	printf("Creating image...\n");
-	//image = XCreateImage(display, visual.visual, 24, ZPixmap, 0, (char*) image_data, SCREENWIDTH, SCREENHEIGHT, 8, 3 * SCREENWIDTH);
-	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0, (char*) image_data, SCREENWIDTH, SCREENHEIGHT, 8, 0);
+	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0, (char*) image_data, SCREENWIDTH, SCREENHEIGHT, 8, 4 * SCREENWIDTH);
 	printf("Image: %d\n", image);
 	printf("Finished initializing!\n");
 }
@@ -89,15 +88,12 @@ void I_FinishUpdate() {
 	int i;
 	
 	printf("Rendering image!\n");
+	memset(image_data, 255, SCREENWIDTH*SCREENHEIGHT*4);
 	for(i = 0; i < SCREENWIDTH*SCREENHEIGHT; i++) {
-		image_data[i * 3] = palette[((int) screens[0][i]) * 3];
-		image_data[i * 3 + 1] = palette[((int) screens[0][i]) * 3 + 1];
-		image_data[i * 3 + 2] = palette[((int) screens[0][i]) * 3 + 2];
-		/*
-		image_data[(i * SCREENWIDTH / (SCREENHEIGHT * SCREENWIDTH) + (i % SCREENHEIGHT) * SCREENWIDTH) * 3] = palette[((int) screens[0][i]) * 3];
-		image_data[(i * SCREENWIDTH / (SCREENHEIGHT * SCREENWIDTH) + (i % SCREENHEIGHT) * SCREENWIDTH) * 3 + 1] = palette[((int) screens[0][i]) * 3 + 1];
-		image_data[(i * SCREENWIDTH / (SCREENHEIGHT * SCREENWIDTH) + (i % SCREENHEIGHT) * SCREENWIDTH) * 3 + 2] = palette[((int) screens[0][i]) * 3 + 2];
-		*/
+		//ORDER: BGR (A?)
+		image_data[i * 4 + 2] = palette[((int) screens[0][i]) * 3 + 0];
+		image_data[i * 4 + 1] = palette[((int) screens[0][i]) * 3 + 1];
+		image_data[i * 4 + 0] = palette[((int) screens[0][i]) * 3 + 2];
 	}
 	printf("Image data converted!\n");
 	
