@@ -56,7 +56,7 @@ void I_InitGraphics() {
 	
 	printf("Allocating screen buffer, image buffer and palette.\n");
 	screens[0] = (unsigned char*) malloc(SCREENWIDTH * SCREENHEIGHT); //Color index, 8-bit per pixel
-	image_data = malloc(SCREENWIDTH * SCREENHEIGHT * 3); //RGB, 8-bit each, 24-bit per pixel
+	image_data = malloc(SCREENWIDTH * SCREENHEIGHT * 4); //RGB, 8-bit each, 24-bit per pixel
 	palette = malloc(256 * 3); //256 entries, each of them 24-bit
 	
 	printf("Creating image...\n");
@@ -71,14 +71,11 @@ void I_ShutdownGraphics() {
 void I_SetPalette(byte *pal) {
 	int i;
 	
-	printf("Copying palette...\n");
 	memcpy(palette, pal, 256 * 3);
 	
-	printf("Looking up gamma...\n");
 	for(i = 0; i < 256 * 3; i++) {
 		palette[i] = gammatable[usegamma][palette[i]];
 	}
-	printf("Done setting palette!\n");
 }
 
 void I_UpdateNoBlit() {
@@ -87,20 +84,16 @@ void I_UpdateNoBlit() {
 void I_FinishUpdate() {
 	int i;
 	
-	printf("Rendering image!\n");
-	memset(image_data, 255, SCREENWIDTH*SCREENHEIGHT*4);
 	for(i = 0; i < SCREENWIDTH*SCREENHEIGHT; i++) {
 		//ORDER: BGR (A?)
+		image_data[i * 4 + 3] = 255;
 		image_data[i * 4 + 2] = palette[((int) screens[0][i]) * 3 + 0];
 		image_data[i * 4 + 1] = palette[((int) screens[0][i]) * 3 + 1];
 		image_data[i * 4 + 0] = palette[((int) screens[0][i]) * 3 + 2];
 	}
-	printf("Image data converted!\n");
 	
-	printf("display: %d, window: %d, context: %d, image: %d\n", display, window, context, image);
 	XPutImage(display, window, context, image, 0, 0, 0, 0, SCREENWIDTH, SCREENHEIGHT);
 	XSync(display, False);
-	printf("Image output!\n");
 }
 
 void I_ReadScreen(byte *scr) {
