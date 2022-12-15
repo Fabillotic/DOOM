@@ -6,6 +6,7 @@
 #include "i_video.h"
 #include "v_video.h"
 #include "d_main.h"
+#include "doomdef.h"
 
 Display *display;
 Window root;
@@ -43,7 +44,7 @@ void I_InitGraphics() {
 	printf("Found visual info!\n");
 	
 	colormap = XCreateColormap(display, root, visual.visual, AllocNone);
-	atts = (XSetWindowAttributes) {.event_mask = ExposureMask, .colormap = colormap, .override_redirect = False};
+	atts = (XSetWindowAttributes) {.event_mask = ExposureMask|KeyPressMask|KeyReleaseMask, .colormap = colormap, .override_redirect = False};
 	window = XCreateWindow(display, root, 0, 0, SCREENWIDTH * SCALE, SCREENHEIGHT * SCALE, 0, 24, InputOutput, visual.visual, CWEventMask | CWColormap | CWOverrideRedirect, &atts);
 	context = XCreateGC(display, window, 0, &vals);
 	
@@ -106,8 +107,89 @@ void I_ReadScreen(byte *scr) {
 	memcpy(scr, screens[0], SCREENWIDTH*SCREENHEIGHT);
 }
 
+int xlatekey(KeySym sym);
 void I_StartTic() {
+	XEvent ev;
+	event_t d_event;
+	
+	while(XPending(display)) {
+		XNextEvent(display, &ev);
+		
+		if(ev.type == KeyPress) {
+			d_event.type = ev_keydown;
+			d_event.data1 = xlatekey(XKeycodeToKeysym(display, ev.xkey.keycode, 0));
+			D_PostEvent(&d_event);
+		}
+		else if(ev.type == KeyRelease) {
+			d_event.type = ev_keyup;
+			d_event.data1 = xlatekey(XKeycodeToKeysym(display, ev.xkey.keycode, 0));
+			D_PostEvent(&d_event);
+		}
+	}
 }
 
 void I_StartFrame() {
+}
+
+int xlatekey(KeySym sym) {
+	int rc;
+	
+	switch(sym) {
+		case XK_Left:	rc = KEY_LEFTARROW;	break;
+		case XK_Right:	rc = KEY_RIGHTARROW;	break;
+		case XK_Down:	rc = KEY_DOWNARROW;	break;
+		case XK_Up:	rc = KEY_UPARROW;	break;
+		case XK_Escape:	rc = KEY_ESCAPE;	break;
+		case XK_Return:	rc = KEY_ENTER;		break;
+		case XK_Tab:	rc = KEY_TAB;		break;
+		case XK_F1:	rc = KEY_F1;		break;
+		case XK_F2:	rc = KEY_F2;		break;
+		case XK_F3:	rc = KEY_F3;		break;
+		case XK_F4:	rc = KEY_F4;		break;
+		case XK_F5:	rc = KEY_F5;		break;
+		case XK_F6:	rc = KEY_F6;		break;
+		case XK_F7:	rc = KEY_F7;		break;
+		case XK_F8:	rc = KEY_F8;		break;
+		case XK_F9:	rc = KEY_F9;		break;
+		case XK_F10:	rc = KEY_F10;		break;
+		case XK_F11:	rc = KEY_F11;		break;
+		case XK_F12:	rc = KEY_F12;		break;
+		
+		case XK_BackSpace:
+		case XK_Delete:	rc = KEY_BACKSPACE;	break;
+		
+		case XK_Pause:	rc = KEY_PAUSE;		break;
+		
+		case XK_KP_Equal:
+		case XK_equal:	rc = KEY_EQUALS;	break;
+		
+		case XK_KP_Subtract:
+		case XK_minus:	rc = KEY_MINUS;		break;
+		
+		case XK_Shift_L:
+		case XK_Shift_R:
+		rc = KEY_RSHIFT;
+		break;
+		
+		case XK_Control_L:
+		case XK_Control_R:
+		rc = KEY_RCTRL;
+		break;
+		
+		case XK_Alt_L:
+		case XK_Meta_L:
+		case XK_Alt_R:
+		case XK_Meta_R:
+		rc = KEY_RALT;
+		break;
+		
+		default:
+		if (sym >= XK_space && sym <= XK_asciitilde)
+			rc = sym - XK_space + ' ';
+		if (sym >= 'A' && sym <= 'Z')
+			rc = sym - 'A' + 'a';
+		break;
+	}
+	
+	return rc;
 }
