@@ -213,11 +213,6 @@ extern char*	sndserver_filename;
 extern int	mb_used;
 #endif
 
-#ifdef LINUX
-char*		mousetype;
-char*		mousedev;
-#endif
-
 extern char*	chat_macros[];
 
 
@@ -259,12 +254,6 @@ default_t	defaults[] =
 #endif
     
 #endif
-
-#ifdef LINUX
-    {"mousedev", (int*)&mousedev, (long int)"/dev/ttyS0"},
-    {"mousetype", (int*)&mousetype, (long int)"microsoft"},
-#endif
-
     {"use_mouse",&usemouse, 1},
     {"mouseb_fire",&mousebfire,0},
     {"mouseb_strafe",&mousebstrafe,1},
