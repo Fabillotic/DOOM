@@ -113,18 +113,22 @@ int xlatekey(KeySym sym);
 void I_StartTic() {
 	XEvent ev;
 	event_t d_event;
+	char buf[256];
+	KeySym sym;
 	
 	while(XPending(display)) {
 		XNextEvent(display, &ev);
 		
 		if(ev.type == KeyPress) {
 			d_event.type = ev_keydown;
-			d_event.data1 = xlatekey(XKeycodeToKeysym(display, ev.xkey.keycode, 0));
+			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
+			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
 		}
 		else if(ev.type == KeyRelease) {
 			d_event.type = ev_keyup;
-			d_event.data1 = xlatekey(XKeycodeToKeysym(display, ev.xkey.keycode, 0));
+			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
+			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
 		}
 	}
