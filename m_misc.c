@@ -206,13 +206,6 @@ extern int	showMessages;
 // machine-independent sound params
 extern	int	numChannels;
 
-
-// UNIX hack, to be removed.
-#ifdef SNDSERV
-extern char*	sndserver_filename;
-extern int	mb_used;
-#endif
-
 extern char*	chat_macros[];
 
 
@@ -246,12 +239,6 @@ default_t	defaults[] =
     {"key_use",&key_use, ' '},
     {"key_strafe",&key_strafe, KEY_RALT},
     {"key_speed",&key_speed, KEY_RSHIFT},
-
-// UNIX hack, to be removed. 
-#ifdef SNDSERV
-    {"sndserver", (int *) &sndserver_filename, (long long int) "sndserver"},
-    {"mb_used", &mb_used, 2},
-#endif
     
 #endif
     {"use_mouse",&usemouse, 1},

@@ -90,12 +90,14 @@ int I_GetSfxLumpNum(sfxinfo_t* sfx) {
 }
 
 int I_StartSound(int id, int vol, int sep, int pitch, int priority) {
+	return id;
 }
 
 void I_StopSound(int handle) {
 }
 
 int I_SoundIsPlaying(int handle) {
+	return 0;
 }
 
 void I_UpdateSound() {
@@ -135,7 +137,9 @@ void I_UnRegisterSong(int handle) {
 }
 
 int I_RegisterSong(void* data) {
+	return 1;
 }
 
 int I_QrySongPlaying(int handle) {
+	return 0;
 }
