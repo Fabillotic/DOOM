@@ -11,6 +11,8 @@
 
 #define SAMPLECOUNT 512
 
+int lengths[NUMSFX];
+
 //
 // This function loads the sound data from the WAD lump,
 //  for single sound.
@@ -51,15 +53,13 @@ void* getsfx(char* sfxname, int* len) {
 	
 	sfx = (unsigned char*)W_CacheLumpNum( sfxlump, PU_STATIC );
 	
-	// Pads the sound effect out to the mixing buffer size.
-	// The original realloc would interfere with zone memory.
+	// Okay okay I think the original comments here
+	// weren't made for small-brained individuals like me.
+	// These two lines make sure that while the 8 header
+	// bytes are preserved, the samples are padded to be
+	// in multiples of SAMPLECOUNT bytes.
 	paddedsize = ((size-8 + (SAMPLECOUNT-1)) / SAMPLECOUNT) * SAMPLECOUNT;
-	
-	// Allocate from zone memory.
 	paddedsfx = (unsigned char*)Z_Malloc( paddedsize+8, PU_STATIC, 0 );
-	// ddt: (unsigned char *) realloc(sfx, paddedsize+8);
-	// This should interfere with zone memory handling,
-	//  which does not kick in in the soundserver.
 	
 	// Now copy and pad.
 	memcpy(  paddedsfx, sfx, size );
@@ -74,6 +74,24 @@ void* getsfx(char* sfxname, int* len) {
 	
 	// Return allocated padded data.
 	return (void *) (paddedsfx + 8);
+}
+
+void I_InitSound() {
+	int i;
+	sfxinfo_t t;
+	
+	for(i = 1; i < NUMSFX; i++) {
+		t = S_sfx[i];
+		printf("Name: '%s', singu: %d, prio: %d, link: %d, pitch: %d, volume: %d, data: %d, usefulness: %d, lumpnum: %d\n", t.name, t.singularity, t.priority, t.link, t.pitch, t.volume, t.data, t.usefulness, t.lumpnum);
+		
+		if(!S_sfx[i].link) {
+			S_sfx[i].data = getsfx(S_sfx[i].name, lengths + i);
+		}
+		else {
+			S_sfx[i].data = S_sfx[i].link->data;
+			lengths[i] = lengths[(S_sfx[i].link - S_sfx)/sizeof(sfxinfo_t)];
+		}
+	}
 }
 
 void I_SetChannels() {
@@ -110,9 +128,6 @@ void I_UpdateSoundParams(int handle, int vol, int sep, int pitch) {
 }
 
 void I_ShutdownSound() {
-}
-
-void I_InitSound() {
 }
 
 void I_InitMusic() {

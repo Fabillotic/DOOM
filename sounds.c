@@ -114,6 +114,7 @@ musicinfo_t S_music[] =
 sfxinfo_t S_sfx[] =
 {
   // S_sfx[0] needs to be a dummy for odd reasons.
+  // name, singularity, priority, link, pitch, volume, data
   { "none", false,  0, 0, -1, -1, 0 },
 
   { "pistol", false, 64, 0, -1, -1, 0 },
