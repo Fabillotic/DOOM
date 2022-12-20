@@ -19,7 +19,7 @@ XImage *image;
 unsigned char *image_data;
 unsigned char *palette;
 
-#define SCALE 5
+int scale;
 
 void I_InitGraphics() {
 	XSetWindowAttributes atts;
@@ -34,6 +34,8 @@ void I_InitGraphics() {
 	}
 	printf("Got display!\n");
 	
+	scale = 4;
+	
 	screen = DefaultScreen(display);
 	root = RootWindow(display, screen);
 	
@@ -45,7 +47,7 @@ void I_InitGraphics() {
 	
 	colormap = XCreateColormap(display, root, visual.visual, AllocNone);
 	atts = (XSetWindowAttributes) {.event_mask = ExposureMask|KeyPressMask|KeyReleaseMask, .colormap = colormap, .override_redirect = False};
-	window = XCreateWindow(display, root, 0, 0, SCREENWIDTH * SCALE, SCREENHEIGHT * SCALE, 0, 24, InputOutput, visual.visual, CWEventMask | CWColormap | CWOverrideRedirect, &atts);
+	window = XCreateWindow(display, root, 0, 0, SCREENWIDTH * scale, SCREENHEIGHT * scale, 0, 24, InputOutput, visual.visual, CWEventMask | CWColormap | CWOverrideRedirect, &atts);
 	context = XCreateGC(display, window, 0, &vals);
 	
 	printf("Mapping window...\n");
@@ -59,11 +61,11 @@ void I_InitGraphics() {
 	
 	printf("Allocating screen buffer, image buffer and palette.\n");
 	screens[0] = (unsigned char*) malloc(SCREENWIDTH * SCREENHEIGHT); //Color index, 8-bit per pixel
-	image_data = malloc(SCREENWIDTH * SCALE * SCREENHEIGHT * SCALE * 4); //RGB, 8-bit each, actually 32-bit per pixel, cause X11 weirdness
+	image_data = malloc(SCREENWIDTH * scale * SCREENHEIGHT * scale * 4); //RGB, 8-bit each, actually 32-bit per pixel, cause X11 weirdness
 	palette = malloc(256 * 3); //256 entries, each of them 24-bit
 	
 	printf("Creating image...\n");
-	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0, (char*) image_data, SCREENWIDTH * SCALE, SCREENHEIGHT * SCALE, 8, 4 * SCREENWIDTH * SCALE);
+	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0, (char*) image_data, SCREENWIDTH * scale, SCREENHEIGHT * scale, 8, 4 * SCREENWIDTH * scale);
 	printf("Image: %d\n", image);
 	printf("Finished initializing!\n");
 }
@@ -87,9 +89,9 @@ void I_UpdateNoBlit() {
 void I_FinishUpdate() {
 	int i, j;
 	
-	for(i = 0; i < SCREENWIDTH*SCALE*SCREENHEIGHT*SCALE; i++) {
+	for(i = 0; i < SCREENWIDTH*scale*SCREENHEIGHT*scale; i++) {
 		//Calculate index into unscaled screen buffer
-		j = i / SCREENWIDTH / SCALE / SCALE * SCREENWIDTH + i % (SCREENWIDTH * SCALE * SCALE) % (SCREENWIDTH * SCALE) / SCALE;
+		j = i / SCREENWIDTH / scale / scale * SCREENWIDTH + i % (SCREENWIDTH * scale * scale) % (SCREENWIDTH * scale) / scale;
 		
 		//ORDER: BGR (A?)
 		image_data[i * 4 + 3] = 255;
@@ -98,7 +100,7 @@ void I_FinishUpdate() {
 		image_data[i * 4 + 0] = palette[((int) screens[0][j]) * 3 + 2];
 	}
 	
-	XPutImage(display, window, context, image, 0, 0, 0, 0, SCREENWIDTH*SCALE, SCREENHEIGHT*SCALE);
+	XPutImage(display, window, context, image, 0, 0, 0, 0, SCREENWIDTH*scale, SCREENHEIGHT*scale);
 	XSync(display, False);
 }
 
