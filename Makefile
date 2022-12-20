@@ -10,7 +10,7 @@ O=linux
 # subdirectory for wadfiles
 WADS=wads
 
-BIN=doom
+BIN=linuxdoom
 
 # not too sophisticated dependency
 OBJS=					\
