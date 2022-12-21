@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+
+#include <AL/al.h>
+#include <AL/alc.h>
 
 #include "i_system.h"
 #include "i_sound.h"
@@ -11,7 +15,13 @@
 
 #define SAMPLECOUNT 512
 
-int lengths[NUMSFX];
+#define NUM_SOUNDS 8
+
+ALCdevice *device;
+ALCcontext *acontext;
+int sounds[NUM_SOUNDS];
+int sources[NUM_SOUNDS];
+int buffers[NUMSFX - 1];
 
 //
 // This function loads the sound data from the WAD lump,
@@ -78,19 +88,40 @@ void* getsfx(char* sfxname, int* len) {
 
 void I_InitSound() {
 	int i;
+	uint16_t freq;
 	sfxinfo_t t;
 	
+	device = alcOpenDevice(NULL);
+	printf("Device: %d\n", device);
+	acontext = alcCreateContext(device, NULL);
+	printf("Context: %d\n", acontext);
+	alcMakeContextCurrent(acontext);
+	
+	alGenBuffers(NUMSFX - 1, buffers);
+	alGenSources(NUM_SOUNDS, sources);
+	
+	printf("Clearing sounds...\n");
+	for(i = 0; i < NUM_SOUNDS; i++) {
+		sounds[i] = -1;
+	}
+	
+	printf("Iterating soundfx...\n");
 	for(i = 1; i < NUMSFX; i++) {
+		printf("sfx[%d]: %d\n", i, S_sfx[i].name);
 		t = S_sfx[i];
 		printf("Name: '%s', singu: %d, prio: %d, link: %d, pitch: %d, volume: %d, data: %d, usefulness: %d, lumpnum: %d\n", t.name, t.singularity, t.priority, t.link, t.pitch, t.volume, t.data, t.usefulness, t.lumpnum);
 		
 		if(!S_sfx[i].link) {
-			S_sfx[i].data = getsfx(S_sfx[i].name, lengths + i);
+			S_sfx[i].data = getsfx(S_sfx[i].name, &S_sfx[i].length);
 		}
 		else {
 			S_sfx[i].data = S_sfx[i].link->data;
-			lengths[i] = lengths[(S_sfx[i].link - S_sfx)/sizeof(sfxinfo_t)];
+			S_sfx[i].length = S_sfx[(S_sfx[i].link - S_sfx)/sizeof(sfxinfo_t)].length;
 		}
+		
+		freq = *((uint16_t*) (S_sfx[i].data - 6));
+		printf("Sample rate: %d\n", freq);
+		alBufferData(buffers[i - 1], AL_FORMAT_MONO8, S_sfx[i].data, S_sfx[i].length, freq);
 	}
 }
 
@@ -108,17 +139,54 @@ int I_GetSfxLumpNum(sfxinfo_t* sfx) {
 }
 
 int I_StartSound(int id, int vol, int sep, int pitch, int priority) {
-	return id;
+	int i;
+	
+	printf("StartSound: '%s'\n", S_sfx[id].name);
+	for(i = 0; i < NUM_SOUNDS; i++) {
+		if(sounds[i] < 0) {
+			sounds[i] = id;
+			break;
+		}
+	}
+	
+	if(i == NUM_SOUNDS) {
+		printf("Max sounds reaced!\n");
+		i = 0;
+		
+		alSourceStop(sources[i]);
+	}
+	
+	sounds[i] = id;
+	alSourcei(sources[i], AL_BUFFER, buffers[id - 1]);
+	alSourcePlay(sources[i]);
+	
+	return i;
 }
 
 void I_StopSound(int handle) {
+	printf("StopSound: '%s'\n", S_sfx[sounds[handle]].name);
+	alSourceStop(sources[handle]);
+	sounds[handle] = -1;
 }
 
 int I_SoundIsPlaying(int handle) {
-	return 0;
+	int state;
+	
+	alGetSourcei(sources[handle], AL_SOURCE_STATE, &state);
+	return state == AL_PLAYING;
 }
 
 void I_UpdateSound() {
+	int i;
+	
+	for(i = 0; i < NUM_SOUNDS; i++) {
+		if(sounds[i] != -1) {
+			if(!I_SoundIsPlaying(i)) {
+				printf("Sound finished: '%s'\n", S_sfx[sounds[i]].name);
+				I_StopSound(i);
+			}
+		}
+	}
 }
 
 void I_SubmitSound() {

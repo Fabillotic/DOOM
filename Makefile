@@ -2,7 +2,7 @@ CC=gcc # gcc or g++
 
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX # -DUSEASM 
 LDFLAGS=-L/usr/X11R6/lib
-LIBS=-lX11 -lm
+LIBS=-lX11 -lm -lopenal
 
 # subdirectory for objects
 O=linux

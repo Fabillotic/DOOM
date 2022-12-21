@@ -59,6 +59,8 @@ struct sfxinfo_struct
 
     // lump number of sfx
     int		lumpnum;		
+
+    int length;
 };
 
 

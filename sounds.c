@@ -33,7 +33,6 @@ rcsid[] = "$Id: sounds.c,v 1.3 1997/01/29 22:40:44 b1 Exp $";
 //
 // Information about all the music
 //
-
 musicinfo_t S_music[] =
 {
     { 0 },
