@@ -10,6 +10,9 @@ O=linux
 # subdirectory for wadfiles
 WADS=wads
 
+# soundfont for music
+SOUNDFONT="/usr/share/soundfonts/Roland SC-55 v3.7.sf2"
+
 BIN=linuxdoom
 
 # not too sophisticated dependency
@@ -93,6 +96,6 @@ $(O)/%.o: %.c | $(O)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(O)/$(BIN)
-	DOOMWADDIR=$(WADS) ./$(O)/$(BIN)
+	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN)
 
 .PHONY: all clean run

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -10,6 +11,7 @@
 #include "i_system.h"
 #include "i_sound.h"
 #include "w_wad.h"
+#include "m_argv.h"
 
 #include "z_zone.h"
 
@@ -20,6 +22,8 @@
 #define SAMPLES_PER_TICK 315
 #define SAMPLECOUNT 512
 #define NUM_SOUNDS 8
+
+char *soundfont = NULL;
 
 ALCdevice *device;
 ALCcontext *acontext;
@@ -82,8 +86,25 @@ void I_InitSound() {
 }
 
 void I_InitMusic() {
+	int p;
 	fluid_settings_t *settings;
-	char *soundfont = "/usr/share/soundfonts/Roland SC-55 v3.7.sf2";
+	
+	soundfont = getenv("SOUNDFONT");
+	if(!soundfont) {
+		if((p = M_CheckParm("-soundfont"))) {
+			if(p < myargc-1) {
+				soundfont = myargv[p + 1];
+			}
+		}
+	}
+	if(!soundfont) {
+		printf("No soundfont found!\n");
+		I_Quit();
+	}
+	if(access(soundfont, F_OK)) {
+		printf("Could not open soundfont!\n");
+		I_Quit();
+	}
 	
 	settings = new_fluid_settings();
 	fluid_settings_setnum(settings, "synth.sample-rate", (float) SAMPLERATE);
