@@ -96,9 +96,9 @@ void I_InitSound() {
 	sfxinfo_t t;
 	
 	device = alcOpenDevice(NULL);
-	printf("Device: %d\n", device);
+	printf("Device: %p\n", device);
 	acontext = alcCreateContext(device, NULL);
-	printf("Context: %d\n", acontext);
+	printf("Context: %p\n", acontext);
 	alcMakeContextCurrent(acontext);
 	
 	alGenBuffers(NUMSFX, buffers);
@@ -111,9 +111,9 @@ void I_InitSound() {
 	
 	printf("Iterating soundfx...\n");
 	for(i = 1; i < NUMSFX; i++) {
-		printf("sfx[%d]: %d\n", i, S_sfx[i].name);
+		printf("sfx[%d]: %s\n", i, S_sfx[i].name);
 		t = S_sfx[i];
-		printf("Name: '%s', singu: %d, prio: %d, link: %d, pitch: %d, volume: %d, data: %d, usefulness: %d, lumpnum: %d\n", t.name, t.singularity, t.priority, t.link, t.pitch, t.volume, t.data, t.usefulness, t.lumpnum);
+		printf("Name: '%s', singu: %d, prio: %d, link: %p, pitch: %d, volume: %d, data: %p, usefulness: %d, lumpnum: %d\n", t.name, t.singularity, t.priority, t.link, t.pitch, t.volume, t.data, t.usefulness, t.lumpnum);
 		
 		if(!S_sfx[i].link) {
 			S_sfx[i].data = getsfx(S_sfx[i].name, &S_sfx[i].length);
