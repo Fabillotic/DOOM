@@ -4,6 +4,27 @@
 #include "doomstat.h"
 #include "sounds.h"
 
+typedef enum mus_event_type {
+	MUS_RELEASE=0,
+	MUS_PRESS=1,
+	MUS_PITCH=2,
+	MUS_SYSTEM=3,
+	MUS_CONTROL=4,
+	MUS_MEASURE=5,
+	MUS_FINISH=6,
+	MUS_UNUSED=7
+} mus_evtype_t;
+
+typedef struct mus_event mus_event_t;
+struct mus_event {
+	mus_event_t *next;
+	mus_evtype_t type;
+	unsigned char channel;
+	int delay;
+	unsigned char dlength;
+	unsigned char data[2];
+};
+
 // Init at program start...
 void I_InitSound();
 
