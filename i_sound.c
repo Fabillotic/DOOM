@@ -20,8 +20,12 @@
 ALCdevice *device;
 ALCcontext *acontext;
 int sounds[NUM_SOUNDS];
+int sounds_start[NUM_SOUNDS];
 int sources[NUM_SOUNDS];
-int buffers[NUMSFX - 1];
+int buffers[NUMSFX]; //Buffer 0 for the music, other buffers for sound effects
+
+#define SONG 1
+int music_source;
 
 //
 // This function loads the sound data from the WAD lump,
@@ -97,7 +101,7 @@ void I_InitSound() {
 	printf("Context: %d\n", acontext);
 	alcMakeContextCurrent(acontext);
 	
-	alGenBuffers(NUMSFX - 1, buffers);
+	alGenBuffers(NUMSFX, buffers);
 	alGenSources(NUM_SOUNDS, sources);
 	
 	printf("Clearing sounds...\n");
@@ -121,7 +125,7 @@ void I_InitSound() {
 		
 		freq = *((uint16_t*) (S_sfx[i].data - 6));
 		printf("Sample rate: %d\n", freq);
-		alBufferData(buffers[i - 1], AL_FORMAT_MONO8, S_sfx[i].data, S_sfx[i].length, freq);
+		alBufferData(buffers[i], AL_FORMAT_MONO8, S_sfx[i].data, S_sfx[i].length, freq);
 	}
 }
 
@@ -139,32 +143,40 @@ int I_GetSfxLumpNum(sfxinfo_t* sfx) {
 }
 
 int I_StartSound(int id, int vol, int sep, int pitch, int priority) {
-	int i;
+	int i, o, ot;
 	
-	printf("StartSound: '%s'\n", S_sfx[id].name);
 	for(i = 0; i < NUM_SOUNDS; i++) {
 		if(sounds[i] < 0) {
 			sounds[i] = id;
+			sounds_start[i] = I_GetTime();
 			break;
 		}
 	}
 	
 	if(i == NUM_SOUNDS) {
-		printf("Max sounds reaced!\n");
-		i = 0;
+		printf("Max sounds reached!\n");
 		
-		alSourceStop(sources[i]);
+		o = -1;
+		ot = 0;
+		for(i = 0; i < NUM_SOUNDS; i++) {
+			if(sounds_start[i] > ot) {
+				o = i;
+				ot = sounds_start[i];
+			}
+		}
+		
+		alSourceStop(sources[o]);
+		i = o;
 	}
 	
 	sounds[i] = id;
-	alSourcei(sources[i], AL_BUFFER, buffers[id - 1]);
+	alSourcei(sources[i], AL_BUFFER, buffers[id]);
 	alSourcePlay(sources[i]);
 	
 	return i;
 }
 
 void I_StopSound(int handle) {
-	printf("StopSound: '%s'\n", S_sfx[sounds[handle]].name);
 	alSourceStop(sources[handle]);
 	sounds[handle] = -1;
 }
@@ -182,14 +194,10 @@ void I_UpdateSound() {
 	for(i = 0; i < NUM_SOUNDS; i++) {
 		if(sounds[i] != -1) {
 			if(!I_SoundIsPlaying(i)) {
-				printf("Sound finished: '%s'\n", S_sfx[sounds[i]].name);
 				I_StopSound(i);
 			}
 		}
 	}
-}
-
-void I_SubmitSound() {
 }
 
 void I_UpdateSoundParams(int handle, int vol, int sep, int pitch) {
@@ -205,24 +213,38 @@ void I_ShutdownMusic() {
 }
 
 void I_PlaySong(int handle, int looping) {
+	if(handle == SONG) {
+		//alSourcePlay(music_source);
+	}
 }
 
 void I_PauseSong(int handle) {
+	if(handle == SONG) {
+		//alSourcePause(music_source);
+	}
 }
 
 void I_ResumeSong(int handle) {
+	if(handle == SONG) {
+		//alSourcePlay(music_source);
+	}
 }
 
 void I_StopSong(int handle) {
+	if(handle == SONG) {
+		//alSourceStop(music_source);
+	}
 }
 
 void I_UnRegisterSong(int handle) {
 }
 
-int I_RegisterSong(void* data) {
-	return 1;
+int I_RegisterSong(void* d) {
+	return SONG;
 }
 
 int I_QrySongPlaying(int handle) {
+	if(handle == SONG) {
+	}
 	return 0;
 }

@@ -393,6 +393,8 @@ void D_DoomLoop (void)
 
 	// Update display, next frame, with current state.
 	D_Display ();
+        
+        I_UpdateSound ();
     }
 }
 
