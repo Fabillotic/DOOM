@@ -7,6 +7,9 @@ LIBS=-lX11 -lm -lopenal -lfluidsynth
 # subdirectory for objects
 O=linux
 
+# subdirectory for sources
+SRC=src
+
 # subdirectory for wadfiles
 WADS=wads
 
@@ -95,7 +98,7 @@ $(O)/$(BIN):	$(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) \
 	-o $(O)/$(BIN) $(LIBS)
 
-$(O)/%.o: %.c | $(O)
+$(O)/%.o: $(SRC)/%.c | $(O)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(O)/$(BIN)
