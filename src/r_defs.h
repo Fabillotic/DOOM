@@ -308,7 +308,7 @@ typedef struct {
 	short leftoffset; // pixels to the left of origin
 	short topoffset;  // pixels below the origin
 	int columnofs[8]; // only [width] used
-	// the [0] is &columnofs[width]
+	                  // the [0] is &columnofs[width]
 } patch_t;
 
 // A vissprite_t is a thing
