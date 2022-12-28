@@ -125,12 +125,14 @@ void I_StartTic() {
 		
 		if(ev.type == KeyPress) {
 			d_event.type = ev_keydown;
+			ev.xkey.state = ev.xkey.state & (~(ControlMask | LockMask | ShiftMask));
 			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
 		}
 		else if(ev.type == KeyRelease) {
 			d_event.type = ev_keyup;
+			ev.xkey.state = ev.xkey.state & (~(ControlMask | LockMask | ShiftMask));
 			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
