@@ -85,6 +85,9 @@ all:	 $(O)/$(BIN)
 clean:
 	rm -rf $(O)
 
+style:
+	clang-format -style=file -i *.c *.h
+
 $(O):
 	mkdir -p $(O)
 
@@ -98,4 +101,4 @@ $(O)/%.o: %.c | $(O)
 run: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -4
 
-.PHONY: all clean run
+.PHONY: all clean run style
