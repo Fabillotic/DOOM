@@ -7,6 +7,7 @@
 #include "v_video.h"
 #include "d_main.h"
 #include "doomdef.h"
+#include "m_argv.h"
 
 Display *display;
 Window root;
@@ -34,7 +35,10 @@ void I_InitGraphics() {
 	}
 	printf("Got display!\n");
 	
-	scale = 4;
+	scale = 1;
+	if(M_CheckParm("-2")) scale = 2;
+	if(M_CheckParm("-3")) scale = 3;
+	if(M_CheckParm("-4")) scale = 4;
 	
 	screen = DefaultScreen(display);
 	root = RootWindow(display, screen);

@@ -96,6 +96,6 @@ $(O)/%.o: %.c | $(O)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(O)/$(BIN)
-	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN)
+	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -4
 
 .PHONY: all clean run
