@@ -65,8 +65,3 @@ void V_GetBlock(int x, int y, int scrn, int width, int height, byte *dest);
 void V_MarkRect(int x, int y, int width, int height);
 
 #endif
-//-----------------------------------------------------------------------------
-//
-// $Log:$
-//
-//-----------------------------------------------------------------------------
