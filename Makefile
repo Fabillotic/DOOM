@@ -89,7 +89,7 @@ clean:
 	rm -rf $(O)
 
 style:
-	clang-format -style=file -i *.c *.h
+	clang-format -style=file -i $(SRC)/*.c $(SRC)/*.h
 
 $(O):
 	mkdir -p $(O)
