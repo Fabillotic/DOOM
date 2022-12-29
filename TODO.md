@@ -11,5 +11,4 @@
 - Directional audio
 
 ### Bux fixes
-- Music sounds.. odd... Issue with pitchbend?
 - Volume doesn't react to in-game volume settings

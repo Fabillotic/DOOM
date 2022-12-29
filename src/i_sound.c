@@ -411,12 +411,12 @@ mus_event_t *parse_data(char *data) {
 		event->type = type;
 		event->channel = channel;
 
-		if(type == 0) {
+		if(type == MUS_RELEASE) {
 			event->dlength = 1;
 			event->data[0] = (unsigned char) data[o] & 127;
 			o++;
 		}
-		else if(type == 1) {
+		else if(type == MUS_PRESS) {
 			event->dlength = 1;
 			event->data[0] = (unsigned char) data[o];
 			o++;
@@ -427,26 +427,26 @@ mus_event_t *parse_data(char *data) {
 				o++;
 			}
 		}
-		else if(type == 2) {
+		else if(type == MUS_PITCH) {
 			event->dlength = 1;
 			event->data[0] = (unsigned char) data[o];
 			o++;
 		}
-		else if(type == 3) {
+		else if(type == MUS_SYSTEM) {
 			event->dlength = 1;
 			event->data[0] = (unsigned char) data[o] & 127;
 			o++;
 		}
-		else if(type == 4) {
+		else if(type == MUS_CONTROL) {
 			event->dlength = 2;
 			event->data[0] = (unsigned char) data[o] & 127;
 			o++;
 			event->data[1] = (unsigned char) data[o] & 127;
 			o++;
 		}
-		else if(type == 5) {}
-		else if(type == 6) {}
-		else if(type == 7) {
+		else if(type == MUS_MEASURE) {}
+		else if(type == MUS_FINISH) {}
+		else if(type == MUS_UNUSED) {
 			/* Skip unused data */
 			o++;
 		}
@@ -484,9 +484,11 @@ void *synthesize(mus_event_t *events, fluid_synth_t *synth,
 	mus_event_t *event;
 	unsigned char volume[16];
 	unsigned char midi_channel;
+	uint16_t pitch;
 	uint16_t *wdata;
 	short synth_dest;
 	fluid_event_t *fluid_ev;
+	fluid_midi_event_t *fluid_midi_ev;
 
 	synth_dest = fluid_sequencer_register_fluidsynth(sequencer, synth);
 	fluid_sequencer_set_time_scale(sequencer, 140);
@@ -533,8 +535,8 @@ void *synthesize(mus_event_t *events, fluid_synth_t *synth,
 			fluid_ev = new_fluid_event();
 			fluid_event_set_source(fluid_ev, -1);
 			fluid_event_set_dest(fluid_ev, synth_dest);
-			fluid_event_pitch_bend(
-			    fluid_ev, midi_channel, ((int) event->data[0]) * 64);
+			pitch = ((uint16_t) event->data[0]) * 64;
+			fluid_event_pitch_bend(fluid_ev, midi_channel, pitch);
 			fluid_sequencer_send_at(sequencer, fluid_ev, ticks, 1);
 			delete_fluid_event(fluid_ev);
 		}
