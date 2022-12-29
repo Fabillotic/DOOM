@@ -41,6 +41,11 @@ unsigned char *image_data;
 unsigned char *palette;
 
 int scale;
+int wwidth;
+int wheight;
+
+void make_image();
+int xlatekey(KeySym sym);
 
 void I_InitGraphics() {
 	XSetWindowAttributes atts;
@@ -60,6 +65,9 @@ void I_InitGraphics() {
 	if(M_CheckParm("-3")) scale = 3;
 	if(M_CheckParm("-4")) scale = 4;
 
+	wwidth = SCREENWIDTH * scale;
+	wheight = SCREENHEIGHT * scale;
+
 	screen = DefaultScreen(display);
 	root = RootWindow(display, screen);
 
@@ -70,12 +78,13 @@ void I_InitGraphics() {
 	printf("Found visual info!\n");
 
 	colormap = XCreateColormap(display, root, visual.visual, AllocNone);
-	atts = (XSetWindowAttributes){
-	    .event_mask = ExposureMask | KeyPressMask | KeyReleaseMask,
+	atts = (XSetWindowAttributes){.event_mask = ExposureMask | KeyPressMask |
+	                                            KeyReleaseMask |
+	                                            StructureNotifyMask,
 	    .colormap = colormap,
 	    .override_redirect = False};
-	window = XCreateWindow(display, root, 0, 0, SCREENWIDTH * scale,
-	    SCREENHEIGHT * scale, 0, 24, InputOutput, visual.visual,
+	window = XCreateWindow(display, root, 0, 0, wwidth, wheight, 0, 24,
+	    InputOutput, visual.visual,
 	    CWEventMask | CWColormap | CWOverrideRedirect, &atts);
 	context = XCreateGC(display, window, 0, &vals);
 
@@ -91,17 +100,24 @@ void I_InitGraphics() {
 	printf("Allocating screen buffer, image buffer and palette.\n");
 	screens[0] = (unsigned char *) malloc(
 	    SCREENWIDTH * SCREENHEIGHT); // Color index, 8-bit per pixel
-	image_data = malloc(
-	    SCREENWIDTH * scale * SCREENHEIGHT * scale *
-	    4); // RGB, 8-bit each, actually 32-bit per pixel, cause X11 weirdness
-	palette = malloc(256 * 3); // 256 entries, each of them 24-bit
+	palette = malloc(256 * 3);       // 256 entries, each of them 24-bit
 
-	printf("Creating image...\n");
-	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0,
-	    (char *) image_data, SCREENWIDTH * scale, SCREENHEIGHT * scale, 8,
-	    4 * SCREENWIDTH * scale);
-	printf("Image: %d\n", image);
+	image = NULL;
+	image_data = NULL;
+
+	make_image();
 	printf("Finished initializing!\n");
+}
+
+void make_image() {
+	if(image) {
+		XDestroyImage(image);
+	}
+
+	// RGB, 8-bit each, actually 32-bit per pixel, cause X11 weirdness
+	image_data = malloc(wwidth * wheight * 4);
+	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0,
+	    (char *) image_data, wwidth, wheight, 8, 4 * wwidth);
 }
 
 void I_ShutdownGraphics() {
@@ -121,22 +137,51 @@ void I_UpdateNoBlit() {
 }
 
 void I_FinishUpdate() {
-	int i, j;
+	int i, j, k, vert, dw, dh, dx, dy, x, y;
 
-	for(i = 0; i < SCREENWIDTH * scale * SCREENHEIGHT * scale; i++) {
-		// Calculate index into unscaled screen buffer
-		j = i / SCREENWIDTH / scale / scale * SCREENWIDTH +
-		    i % (SCREENWIDTH * scale * scale) % (SCREENWIDTH * scale) / scale;
+	vert = (float) wwidth / wheight < (float) SCREENWIDTH / SCREENHEIGHT;
 
-		// ORDER: BGR (A?)
-		image_data[i * 4 + 3] = 255;
-		image_data[i * 4 + 2] = palette[((int) screens[0][j]) * 3 + 0];
-		image_data[i * 4 + 1] = palette[((int) screens[0][j]) * 3 + 1];
-		image_data[i * 4 + 0] = palette[((int) screens[0][j]) * 3 + 2];
+	if(!vert) {
+		dh = wheight;
+		dw = (int) (((float) dh / SCREENHEIGHT) * SCREENWIDTH);
+		dy = 0;
+		dx = (wwidth - dw) / 2;
+	}
+	else {
+		dw = wwidth;
+		dh = (int) (((float) dw / SCREENWIDTH) * SCREENHEIGHT);
+		dx = 0;
+		dy = (wheight - dh) / 2;
 	}
 
-	XPutImage(display, window, context, image, 0, 0, 0, 0, SCREENWIDTH * scale,
-	    SCREENHEIGHT * scale);
+	for(i = 0; i < wwidth * wheight; i++) {
+		j = i % wwidth;
+		k = i / wwidth;
+
+		image_data[i * 4 + 3] = 255;
+
+		/* Black bars */
+		if(j < dx || j > dx + dw || k < dy || k > dy + dh) {
+			image_data[i * 4 + 0] = 0;
+			image_data[i * 4 + 1] = 0;
+			image_data[i * 4 + 2] = 0;
+		}
+		else {
+			x = (int) (((float) (j - dx)) / dw * SCREENWIDTH);
+			y = (int) (((float) (k - dy)) / dh * SCREENHEIGHT);
+
+			if(x == SCREENWIDTH || y == SCREENHEIGHT) continue;
+
+			image_data[i * 4 + 0] =
+			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 2];
+			image_data[i * 4 + 1] =
+			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 1];
+			image_data[i * 4 + 2] =
+			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0];
+		}
+	}
+
+	XPutImage(display, window, context, image, 0, 0, 0, 0, wwidth, wheight);
 	XSync(display, False);
 }
 
@@ -145,7 +190,6 @@ void I_ReadScreen(byte *scr) {
 	memcpy(scr, screens[0], SCREENWIDTH * SCREENHEIGHT);
 }
 
-int xlatekey(KeySym sym);
 void I_StartTic() {
 	XEvent ev;
 	event_t d_event;
@@ -170,6 +214,11 @@ void I_StartTic() {
 			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
+		}
+		else if(ev.type == ConfigureNotify) {
+			wwidth = ev.xconfigure.width;
+			wheight = ev.xconfigure.height;
+			make_image();
 		}
 	}
 }
