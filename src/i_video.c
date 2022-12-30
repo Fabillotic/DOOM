@@ -40,11 +40,17 @@ XImage *image;
 unsigned char *image_data;
 unsigned char *palette;
 
+Cursor empty_cursor;
+int mouse_grabbed;
+
 int scale;
 int wwidth;
 int wheight;
 
 void make_image();
+void grab_mouse();
+void release_mouse();
+void create_empty_cursor();
 int xlatekey(KeySym sym);
 
 void I_InitGraphics() {
@@ -77,10 +83,12 @@ void I_InitGraphics() {
 	}
 	printf("Found visual info!\n");
 
+	mouse_grabbed = 0;
+
 	colormap = XCreateColormap(display, root, visual.visual, AllocNone);
-	atts = (XSetWindowAttributes){.event_mask = ExposureMask | KeyPressMask |
-	                                            KeyReleaseMask |
-	                                            StructureNotifyMask,
+	atts = (XSetWindowAttributes){
+	    .event_mask = ExposureMask | KeyPressMask | KeyReleaseMask |
+	                  StructureNotifyMask | FocusChangeMask,
 	    .colormap = colormap,
 	    .override_redirect = False};
 	window = XCreateWindow(display, root, 0, 0, wwidth, wheight, 0, 24,
@@ -96,6 +104,8 @@ void I_InitGraphics() {
 		XNextEvent(display, &ev);
 		if(ev.type == Expose && !ev.xexpose.count) break;
 	}
+
+	create_empty_cursor();
 
 	printf("Allocating screen buffer, image buffer and palette.\n");
 	screens[0] = (unsigned char *) malloc(
@@ -118,6 +128,34 @@ void make_image() {
 	image_data = malloc(wwidth * wheight * 4);
 	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0,
 	    (char *) image_data, wwidth, wheight, 8, 4 * wwidth);
+}
+
+void grab_mouse() {
+	if(!mouse_grabbed)
+		XGrabPointer(display, window, True,
+		    ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+		    GrabModeAsync, GrabModeAsync, None, None, CurrentTime);
+	XDefineCursor(display, window, empty_cursor);
+	mouse_grabbed = 1;
+}
+
+void release_mouse() {
+	if(mouse_grabbed) XUngrabPointer(display, CurrentTime);
+	XUndefineCursor(display, window);
+	mouse_grabbed = 0;
+}
+
+void create_empty_cursor() {
+	XColor col;
+	Pixmap pix;
+
+	col.pixel = 0;
+	col.red = 0;
+	col.flags = DoRed;
+
+	pix = XCreatePixmap(display, root, 1, 1, 1);
+	empty_cursor = XCreatePixmapCursor(display, pix, pix, &col, &col, 0, 0);
+	XFreePixmap(display, pix);
 }
 
 void I_ShutdownGraphics() {
@@ -215,12 +253,70 @@ void I_StartTic() {
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
 		}
+		else if(ev.type == ButtonPress) {
+			d_event.type = ev_mouse;
+
+			if(ev.xbutton.state & Button1Mask) d_event.data1 |= 1;
+			if(ev.xbutton.state & Button2Mask) d_event.data1 |= 2;
+			if(ev.xbutton.state & Button3Mask) d_event.data1 |= 4;
+
+			if(ev.xbutton.button == Button1) d_event.data1 |= 1;
+			if(ev.xbutton.button == Button2) d_event.data1 |= 2;
+			if(ev.xbutton.button == Button3) d_event.data1 |= 4;
+
+			d_event.data2 = 0;
+			d_event.data3 = 0;
+
+			D_PostEvent(&d_event);
+		}
+		else if(ev.type == ButtonRelease) {
+			d_event.type = ev_mouse;
+
+			d_event.data1 = ((ev.xbutton.state & Button1Mask) > 0);
+			d_event.data1 |= ((ev.xbutton.state & Button2Mask) > 0) << 1;
+			d_event.data1 |= ((ev.xbutton.state & Button3Mask) > 0) << 2;
+			if(ev.xbutton.button == Button1) d_event.data1 &= ~(1 << 0);
+			if(ev.xbutton.button == Button2) d_event.data1 &= ~(1 << 1);
+			if(ev.xbutton.button == Button3) d_event.data1 &= ~(1 << 2);
+
+			d_event.data2 = 0;
+			d_event.data3 = 0;
+
+			D_PostEvent(&d_event);
+		}
+		else if(ev.type == MotionNotify) {
+			d_event.type = ev_mouse;
+
+			d_event.data1 = ((ev.xbutton.state & Button1Mask) > 0);
+			d_event.data1 |= ((ev.xbutton.state & Button2Mask) > 0) << 1;
+			d_event.data1 |= ((ev.xbutton.state & Button3Mask) > 0) << 2;
+
+			d_event.data2 = (ev.xmotion.x - wwidth / 2) << 2;
+			d_event.data3 = (wheight / 2 - ev.xmotion.y) << 2;
+
+			if(d_event.data2 != 0 || d_event.data3 != 0) {
+				D_PostEvent(&d_event);
+			}
+		}
 		else if(ev.type == ConfigureNotify) {
 			wwidth = ev.xconfigure.width;
 			wheight = ev.xconfigure.height;
 			make_image();
 		}
+		else if(ev.type == FocusIn) {
+			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
+				grab_mouse();
+			}
+		}
+		else if(ev.type == FocusOut) {
+			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
+				release_mouse();
+			}
+		}
 	}
+	if(mouse_grabbed)
+		XWarpPointer(
+		    display, None, window, 0, 0, 0, 0, wwidth / 2, wheight / 2);
 }
 
 void I_StartFrame() {
