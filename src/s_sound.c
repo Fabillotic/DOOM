@@ -40,18 +40,6 @@ const char snd_prefixen[] = {
 
 #define S_MAX_VOLUME 127
 
-// when to clip out sounds
-// Does not fit the large outdoor areas.
-#define S_CLIPPING_DIST (1200 * 0x10000)
-
-// Distance tp origin when sounds should be maxed out.
-// This should relate to movement clipping resolution
-// (see BLOCKMAP handling).
-// Originally: (200*0x10000).
-#define S_CLOSE_DIST (160 * 0x10000)
-
-#define S_ATTENUATOR ((S_CLIPPING_DIST - S_CLOSE_DIST) >> FRACBITS)
-
 // Adjustable by menu.
 #define NORM_VOLUME snd_MaxVolume
 
@@ -307,7 +295,7 @@ void S_StartSoundAtVolume(void *origin_p, int sfx_id, int volume) {
 	//  mix/output buffer.
 	channels[cnum].handle = I_StartSound(sfx_id,
 	    /*sfx->data,*/
-	    volume, sep, pitch, priority);
+	    volume, sep, pitch, priority, origin);
 }
 
 void S_StartSound(void *origin, int sfx_id) {

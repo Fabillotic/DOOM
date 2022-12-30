@@ -31,7 +31,13 @@
 #include "i_sound.h"
 #include "i_system.h"
 #include "m_argv.h"
+#include "s_sound.h"
 #include "w_wad.h"
+
+#include "doomstat.h"
+#include "p_mobj.h"
+
+#include "tables.h"
 
 #include "z_zone.h"
 
@@ -43,6 +49,8 @@
 #define SAMPLECOUNT 512
 #define NUM_SOUNDS 8
 
+#define PI 3.141592653589
+
 char *soundfont = NULL;
 
 ALCdevice *device;
@@ -53,6 +61,7 @@ int sounds[NUM_SOUNDS];
 int sounds_start[NUM_SOUNDS];
 int sources[NUM_SOUNDS];
 int buffers[NUMSFX - 1];
+float orientation[6];
 
 #define SONG 1
 int music_source;
@@ -80,9 +89,10 @@ void I_InitSound() {
 	alGenBuffers(NUMSFX - 1, buffers);
 	alGenSources(NUM_SOUNDS, sources);
 
-	printf("Clearing sounds...\n");
 	for(i = 0; i < NUM_SOUNDS; i++) {
 		sounds[i] = -1;
+		alSourcei(sources[i], AL_REFERENCE_DISTANCE, S_CLOSE_DIST);
+		alSourcei(sources[i], AL_MAX_DISTANCE, S_CLIPPING_DIST);
 	}
 
 	printf("Iterating soundfx...\n");
@@ -156,7 +166,8 @@ int I_GetSfxLumpNum(sfxinfo_t *sfx) {
 	return W_GetNumForName(namebuf);
 }
 
-int I_StartSound(int id, int vol, int sep, int pitch, int priority) {
+int I_StartSound(
+    int id, int vol, int sep, int pitch, int priority, mobj_t *origin) {
 	int i, o, ot;
 
 	for(i = 0; i < NUM_SOUNDS; i++) {
@@ -171,9 +182,9 @@ int I_StartSound(int id, int vol, int sep, int pitch, int priority) {
 		printf("Max sounds reached!\n");
 
 		o = -1;
-		ot = 0;
+		ot = INT_MAX;
 		for(i = 0; i < NUM_SOUNDS; i++) {
-			if(sounds_start[i] > ot) {
+			if(sounds_start[i] < ot) {
 				o = i;
 				ot = sounds_start[i];
 			}
@@ -185,6 +196,18 @@ int I_StartSound(int id, int vol, int sep, int pitch, int priority) {
 
 	sounds[i] = id;
 	alSourcei(sources[i], AL_BUFFER, buffers[id - 1]);
+	alSourcef(sources[i], AL_GAIN, vol / 15.0f);
+
+	if(origin && origin != players[consoleplayer].mo) {
+		alSourcei(sources[i], AL_SOURCE_RELATIVE, AL_FALSE);
+		alSource3i(sources[i], AL_POSITION, origin->x, 0, origin->y);
+	}
+	else {
+		/* Make the source "sticky" */
+		alSourcei(sources[i], AL_SOURCE_RELATIVE, AL_TRUE);
+		alSource3i(sources[i], AL_POSITION, 0, 0, 0);
+	}
+
 	alSourcePlay(sources[i]);
 
 	return i;
@@ -204,6 +227,26 @@ int I_SoundIsPlaying(int handle) {
 
 void I_UpdateSound() {
 	int i;
+	double angle;
+
+	if(players[consoleplayer].mo) {
+		alListener3i(AL_POSITION, players[consoleplayer].mo->x, 0,
+		    players[consoleplayer].mo->y);
+		angle = (players[consoleplayer].mo->angle >> ANGLETOFINESHIFT) /
+		        1024.0 * (PI / 4.0);
+
+		orientation[0] = (float) cos(angle + PI);
+		orientation[1] = 0.0f;
+		orientation[2] = (float) sin(angle + PI);
+
+		orientation[3] = 0.0f;
+		orientation[4] = 1.0f;
+		orientation[5] = 0.0f;
+		alListenerfv(AL_ORIENTATION, orientation);
+	}
+	else {
+		alListener3i(AL_POSITION, 0, 0, 0);
+	}
 
 	for(i = 0; i < NUM_SOUNDS; i++) {
 		if(sounds[i] != -1) {
@@ -212,6 +255,8 @@ void I_UpdateSound() {
 			}
 		}
 	}
+
+	alSourcef(music_source, AL_GAIN, snd_MusicVolume / 15.0f);
 }
 
 void I_UpdateSoundParams(int handle, int vol, int sep, int pitch) {
@@ -278,7 +323,6 @@ int I_RegisterSong(void *data) {
 	alBufferData(music_buffer, AL_FORMAT_STEREO16, wdata, wsize, SAMPLERATE);
 
 	alSourcei(music_source, AL_BUFFER, music_buffer);
-	// alSourcePlay(music_source);
 
 	return SONG;
 }
