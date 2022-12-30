@@ -131,21 +131,35 @@ byte *savebuffer;
 //
 // controls (have defaults)
 //
-int key_right;
-int key_left;
 
-int key_up;
-int key_down;
-int key_strafeleft;
-int key_straferight;
-int key_fire;
-int key_use;
-int key_strafe;
-int key_speed;
+#ifdef FPSMOVE
+	int key_forward;
+	int key_left;
+	int key_back;
+	int key_right;
 
-int mousebfire;
-int mousebstrafe;
-int mousebforward;
+	int key_use;
+	int key_speed;
+
+	int mousebfire;
+#else
+	int key_right;
+	int key_left;
+	int key_up;
+	int key_down;
+
+	int key_strafeleft;
+	int key_straferight;
+
+	int key_fire;
+	int key_use;
+	int key_strafe;
+	int key_speed;
+
+	int mousebfire;
+	int mousebstrafe;
+	int mousebforward;
+#endif
 
 int joybfire;
 int joybstrafe;
@@ -220,6 +234,7 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 	int tspeed;
 	int forward;
 	int side;
+	int turn;
 
 	ticcmd_t *base;
 
@@ -228,21 +243,35 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 
 	cmd->consistancy = consistancy[consoleplayer][maketic % BACKUPTICS];
 
-	strafe = gamekeydown[key_strafe] || mousebuttons[mousebstrafe] ||
-	         joybuttons[joybstrafe];
-	speed = gamekeydown[key_speed] || joybuttons[joybspeed];
-
 	forward = side = 0;
+	turn = joyxmove < 0 || joyxmove > 0;
+
+#ifndef FPSMOVE
+	turn = turn || gamekeydown[key_right] || gamekeydown[key_left];
+#endif
 
 	// use two stage accelerative turning
 	// on the keyboard and joystick
-	if(joyxmove < 0 || joyxmove > 0 || gamekeydown[key_right] ||
-	    gamekeydown[key_left])
+	if(joyxmove < 0 || joyxmove > 0)
 		turnheld += ticdup;
 	else turnheld = 0;
 
 	if(turnheld < SLOWTURNTICS) tspeed = 2; // slow turn
 	else tspeed = speed;
+
+#ifdef FPSMOVE
+	speed = gamekeydown[key_speed];
+
+	if(gamekeydown[key_forward]) forward += forwardmove[speed];
+	if(gamekeydown[key_back]) forward -= forwardmove[speed];
+	if(gamekeydown[key_right]) side += sidemove[speed];
+	if(gamekeydown[key_left]) side -= sidemove[speed];
+
+	cmd->angleturn -= mousex * 0x8;
+#else
+	strafe = gamekeydown[key_strafe] || mousebuttons[mousebstrafe] ||
+	         joybuttons[joybstrafe];
+	speed = gamekeydown[key_speed] || joybuttons[joybspeed];
 
 	// let movement keys cancel each other out
 	if(strafe) {
@@ -276,13 +305,9 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 	if(joyymove > 0) forward -= forwardmove[speed];
 	if(gamekeydown[key_straferight]) side += sidemove[speed];
 	if(gamekeydown[key_strafeleft]) side -= sidemove[speed];
+#endif
 
-	// buttons
-	cmd->chatchar = HU_dequeueChatChar();
-
-	if(gamekeydown[key_fire] || mousebuttons[mousebfire] ||
-	    joybuttons[joybfire])
-		cmd->buttons |= BT_ATTACK;
+	if(mousebuttons[mousebfire]) cmd->buttons |= BT_ATTACK;
 
 	if(gamekeydown[key_use] || joybuttons[joybuse]) {
 		cmd->buttons |= BT_USE;
@@ -297,6 +322,13 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 			cmd->buttons |= i << BT_WEAPONSHIFT;
 			break;
 		}
+
+	// buttons
+	cmd->chatchar = HU_dequeueChatChar();
+
+#ifndef FPSMOVE
+	if(gamekeydown[key_fire] || joybuttons[joybfire])
+		cmd->buttons |= BT_ATTACK;
 
 	// mouse
 	if(mousebuttons[mousebforward]) forward += forwardmove[speed];
@@ -341,6 +373,7 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 	forward += mousey;
 	if(strafe) side += mousex * 2;
 	else cmd->angleturn -= mousex * 0x8;
+#endif
 
 	mousex = mousey = 0;
 
