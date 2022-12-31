@@ -47,6 +47,18 @@ int scale;
 int wwidth;
 int wheight;
 
+#ifdef JOYTEST
+int joytest[8];
+#define JOY_FORWARD 't'
+#define JOY_LEFT 'f'
+#define JOY_BACK 'g'
+#define JOY_RIGHT 'h'
+#define JOY_FIRE 'c'
+#define JOY_STRAFE 'v'
+#define JOY_USE 'b'
+#define JOY_SPEED 'n'
+#endif
+
 void make_image();
 void grab_mouse();
 void release_mouse();
@@ -106,6 +118,9 @@ void I_InitGraphics() {
 	}
 
 	create_empty_cursor();
+#ifdef JOYTEST
+	memset(joytest, 0, 8 * sizeof(int));
+#endif
 
 	printf("Allocating screen buffer, image buffer and palette.\n");
 	screens[0] = (unsigned char *) malloc(
@@ -244,6 +259,24 @@ void I_StartTic() {
 			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
+
+#ifdef JOYTEST
+			if(d_event.data1 == JOY_FORWARD) joytest[0] = 1;
+			else if(d_event.data1 == JOY_LEFT) joytest[1] = 1;
+			else if(d_event.data1 == JOY_BACK) joytest[2] = 1;
+			else if(d_event.data1 == JOY_RIGHT) joytest[3] = 1;
+			else if(d_event.data1 == JOY_FIRE) joytest[4] = 1;
+			else if(d_event.data1 == JOY_STRAFE) joytest[5] = 1;
+			else if(d_event.data1 == JOY_USE) joytest[6] = 1;
+			else if(d_event.data1 == JOY_SPEED) joytest[7] = 1;
+
+			d_event.type = ev_joystick;
+			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) | (joytest[7] << 3);
+			d_event.data2 = (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
+			d_event.data3 = (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
+			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n", d_event.data1, d_event.data2, d_event.data3);
+			D_PostEvent(&d_event);
+#endif
 		}
 		else if(ev.type == KeyRelease) {
 			d_event.type = ev_keyup;
@@ -252,6 +285,24 @@ void I_StartTic() {
 			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
+
+#ifdef JOYTEST
+			if(d_event.data1 == JOY_FORWARD) joytest[0] = 0;
+			else if(d_event.data1 == JOY_LEFT) joytest[1] = 0;
+			else if(d_event.data1 == JOY_BACK) joytest[2] = 0;
+			else if(d_event.data1 == JOY_RIGHT) joytest[3] = 0;
+			else if(d_event.data1 == JOY_FIRE) joytest[4] = 0;
+			else if(d_event.data1 == JOY_STRAFE) joytest[5] = 0;
+			else if(d_event.data1 == JOY_USE) joytest[6] = 0;
+			else if(d_event.data1 == JOY_SPEED) joytest[7] = 0;
+
+			d_event.type = ev_joystick;
+			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) | (joytest[7] << 3);
+			d_event.data2 = (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
+			d_event.data3 = (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
+			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n", d_event.data1, d_event.data2, d_event.data3);
+			D_PostEvent(&d_event);
+#endif
 		}
 		else if(ev.type == ButtonPress) {
 			d_event.type = ev_mouse;
