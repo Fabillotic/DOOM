@@ -133,14 +133,11 @@ int usejoystick;
 
 #ifdef FPSMOVE
 extern int key_forward;
-extern int key_left;
+extern int key_leftmove;
 extern int key_back;
-extern int key_right;
+extern int key_rightmove;
 
-extern int key_use;
-extern int key_speed;
-
-extern int mousebfire;
+extern int key_interact;
 #else
 extern int key_right;
 extern int key_left;
@@ -153,12 +150,13 @@ extern int key_straferight;
 extern int key_fire;
 extern int key_use;
 extern int key_strafe;
-extern int key_speed;
 
-extern int mousebfire;
 extern int mousebstrafe;
 extern int mousebforward;
 #endif
+
+extern int key_speed;
+extern int mousebfire;
 
 extern int joybfire;
 extern int joybstrafe;
@@ -199,13 +197,11 @@ default_t defaults[] = {
 
 #ifdef FPSMOVE
 	{"key_forward", &key_forward, 'w'},
-	{"key_left", &key_left, 'a'},
-	{"key_right", &key_right, 'd'},
+	{"key_leftmove", &key_leftmove, 'a'},
+	{"key_rightmove", &key_rightmove, 'd'},
 	{"key_back", &key_back, 's'},
 
-	{"key_use", &key_use, 'e'},
-	{"key_speed", &key_speed, KEY_RSHIFT},
-	{"mouseb_fire", &mousebfire, 0},
+	{"key_interact", &key_interact, 'e'},
 
 #else
 	{"key_right", &key_right, KEY_RIGHTARROW},
@@ -218,11 +214,11 @@ default_t defaults[] = {
 	{"key_fire", &key_fire, KEY_RCTRL},
 	{"key_use", &key_use, ' '},
 	{"key_strafe", &key_strafe, KEY_RALT},
-	{"key_speed", &key_speed, KEY_RSHIFT},
-	{"mouseb_fire", &mousebfire, 0},
 	{"mouseb_strafe", &mousebstrafe, 1},
 	{"mouseb_forward", &mousebforward, 2},
 #endif
+	{"key_speed", &key_speed, KEY_RSHIFT},
+	{"mouseb_fire", &mousebfire, 0},
 
 	{"use_mouse", &usemouse, 1}, 
 

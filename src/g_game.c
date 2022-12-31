@@ -133,15 +133,13 @@ byte *savebuffer;
 //
 
 #ifdef FPSMOVE
+// altered names for different defaults
 int key_forward;
-int key_left;
+int key_leftmove;
 int key_back;
-int key_right;
+int key_rightmove;
 
-int key_use;
-int key_speed;
-
-int mousebfire;
+int key_interact;
 #else
 int key_right;
 int key_left;
@@ -154,12 +152,13 @@ int key_straferight;
 int key_fire;
 int key_use;
 int key_strafe;
-int key_speed;
 
-int mousebfire;
 int mousebstrafe;
 int mousebforward;
 #endif
+
+int key_speed;
+int mousebfire;
 
 int joybfire;
 int joybstrafe;
@@ -265,8 +264,8 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 #ifdef FPSMOVE
 	if(gamekeydown[key_forward]) forward += forwardmove[speed];
 	if(gamekeydown[key_back]) forward -= forwardmove[speed];
-	if(gamekeydown[key_right]) side += sidemove[speed];
-	if(gamekeydown[key_left]) side -= sidemove[speed];
+	if(gamekeydown[key_rightmove]) side += sidemove[speed];
+	if(gamekeydown[key_leftmove]) side -= sidemove[speed];
 
 	strafe = joybuttons[joybstrafe];
 	if(!strafe) {
@@ -320,7 +319,11 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 
 	if(mousebuttons[mousebfire]) cmd->buttons |= BT_ATTACK;
 
+#ifndef FPSMOVE
 	if(gamekeydown[key_use] || joybuttons[joybuse]) {
+#else
+	if(gamekeydown[key_interact] || joybuttons[joybuse]) {
+#endif
 		cmd->buttons |= BT_USE;
 		// clear double clicks if hit use button
 		dclicks = 0;
