@@ -228,13 +228,16 @@ int G_CmdChecksum(ticcmd_t *cmd) {
 //
 void G_BuildTiccmd(ticcmd_t *cmd) {
 	int i;
-	boolean strafe;
-	boolean bstrafe;
 	int speed;
 	int tspeed;
 	int forward;
 	int side;
 	int turn;
+	boolean strafe;
+
+#ifndef FPSMOVE
+	boolean bstrafe;
+#endif
 
 	ticcmd_t *base;
 
@@ -245,6 +248,7 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 
 	forward = side = 0;
 	turn = joyxmove < 0 || joyxmove > 0;
+	speed = gamekeydown[key_speed] || joybuttons[joybspeed];
 
 #ifndef FPSMOVE
 	turn = turn || gamekeydown[key_right] || gamekeydown[key_left];
@@ -252,7 +256,7 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 
 	// use two stage accelerative turning
 	// on the keyboard and joystick
-	if(joyxmove < 0 || joyxmove > 0)
+	if(turn)
 		turnheld += ticdup;
 	else turnheld = 0;
 
@@ -260,18 +264,25 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 	else tspeed = speed;
 
 #ifdef FPSMOVE
-	speed = gamekeydown[key_speed];
-
 	if(gamekeydown[key_forward]) forward += forwardmove[speed];
 	if(gamekeydown[key_back]) forward -= forwardmove[speed];
 	if(gamekeydown[key_right]) side += sidemove[speed];
 	if(gamekeydown[key_left]) side -= sidemove[speed];
 
+	strafe = joybuttons[joybstrafe];
+	if(!strafe) {
+		if(joyxmove > 0) cmd->angleturn -= angleturn[tspeed];
+		if(joyxmove < 0) cmd->angleturn += angleturn[tspeed];
+	}
+	else {
+		if(joyxmove > 0) side += sidemove[speed];
+		if(joyxmove < 0) side -= sidemove[speed];
+	}
+
 	cmd->angleturn -= mousex * 0x8;
 #else
 	strafe = gamekeydown[key_strafe] || mousebuttons[mousebstrafe] ||
 	         joybuttons[joybstrafe];
-	speed = gamekeydown[key_speed] || joybuttons[joybspeed];
 
 	// let movement keys cancel each other out
 	if(strafe) {
@@ -301,11 +312,12 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 		// fprintf(stderr, "down\n");
 		forward -= forwardmove[speed];
 	}
-	if(joyymove < 0) forward += forwardmove[speed];
-	if(joyymove > 0) forward -= forwardmove[speed];
 	if(gamekeydown[key_straferight]) side += sidemove[speed];
 	if(gamekeydown[key_strafeleft]) side -= sidemove[speed];
 #endif
+
+	if(joyymove < 0) forward += forwardmove[speed];
+	if(joyymove > 0) forward -= forwardmove[speed];
 
 	if(mousebuttons[mousebfire]) cmd->buttons |= BT_ATTACK;
 
@@ -326,8 +338,11 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 	// buttons
 	cmd->chatchar = HU_dequeueChatChar();
 
+	if(joybuttons[joybfire])
+		cmd->buttons |= BT_ATTACK;
+
 #ifndef FPSMOVE
-	if(gamekeydown[key_fire] || joybuttons[joybfire])
+	if(gamekeydown[key_fire])
 		cmd->buttons |= BT_ATTACK;
 
 	// mouse
