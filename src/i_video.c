@@ -271,10 +271,14 @@ void I_StartTic() {
 			else if(d_event.data1 == JOY_SPEED) joytest[7] = 1;
 
 			d_event.type = ev_joystick;
-			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) | (joytest[7] << 3);
-			d_event.data2 = (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
-			d_event.data3 = (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
-			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n", d_event.data1, d_event.data2, d_event.data3);
+			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) |
+			                (joytest[7] << 3);
+			d_event.data2 =
+			    (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
+			d_event.data3 =
+			    (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
+			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
+			    d_event.data1, d_event.data2, d_event.data3);
 			D_PostEvent(&d_event);
 #endif
 		}
@@ -297,10 +301,14 @@ void I_StartTic() {
 			else if(d_event.data1 == JOY_SPEED) joytest[7] = 0;
 
 			d_event.type = ev_joystick;
-			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) | (joytest[7] << 3);
-			d_event.data2 = (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
-			d_event.data3 = (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
-			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n", d_event.data1, d_event.data2, d_event.data3);
+			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) |
+			                (joytest[7] << 3);
+			d_event.data2 =
+			    (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
+			d_event.data3 =
+			    (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
+			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
+			    d_event.data1, d_event.data2, d_event.data3);
 			D_PostEvent(&d_event);
 #endif
 		}

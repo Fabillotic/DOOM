@@ -132,32 +132,32 @@ int usemouse;
 int usejoystick;
 
 #ifdef FPSMOVE
-	extern int key_forward;
-	extern int key_left;
-	extern int key_back;
-	extern int key_right;
+extern int key_forward;
+extern int key_left;
+extern int key_back;
+extern int key_right;
 
-	extern int key_use;
-	extern int key_speed;
+extern int key_use;
+extern int key_speed;
 
-	extern int mousebfire;
+extern int mousebfire;
 #else
-	extern int key_right;
-	extern int key_left;
-	extern int key_up;
-	extern int key_down;
+extern int key_right;
+extern int key_left;
+extern int key_up;
+extern int key_down;
 
-	extern int key_strafeleft;
-	extern int key_straferight;
+extern int key_strafeleft;
+extern int key_straferight;
 
-	extern int key_fire;
-	extern int key_use;
-	extern int key_strafe;
-	extern int key_speed;
+extern int key_fire;
+extern int key_use;
+extern int key_strafe;
+extern int key_speed;
 
-	extern int mousebfire;
-	extern int mousebstrafe;
-	extern int mousebforward;
+extern int mousebfire;
+extern int mousebstrafe;
+extern int mousebforward;
 #endif
 
 extern int joybfire;
@@ -190,6 +190,7 @@ typedef struct {
 	int untranslated;  // lousy hack
 } default_t;
 
+// clang-format off
 default_t defaults[] = {
 	{"mouse_sensitivity", &mouseSensitivity, 5},
 	{"sfx_volume", &snd_SfxVolume, 8},
@@ -249,6 +250,7 @@ default_t defaults[] = {
 	{"chatmacro8", (int *) &chat_macros[8], (long int) HUSTR_CHATMACRO8},
 	{"chatmacro9", (int *) &chat_macros[9], (long int) HUSTR_CHATMACRO9}
 };
+// clang-format on
 
 int numdefaults;
 char *defaultfile;

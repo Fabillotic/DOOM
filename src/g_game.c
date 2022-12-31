@@ -133,32 +133,32 @@ byte *savebuffer;
 //
 
 #ifdef FPSMOVE
-	int key_forward;
-	int key_left;
-	int key_back;
-	int key_right;
+int key_forward;
+int key_left;
+int key_back;
+int key_right;
 
-	int key_use;
-	int key_speed;
+int key_use;
+int key_speed;
 
-	int mousebfire;
+int mousebfire;
 #else
-	int key_right;
-	int key_left;
-	int key_up;
-	int key_down;
+int key_right;
+int key_left;
+int key_up;
+int key_down;
 
-	int key_strafeleft;
-	int key_straferight;
+int key_strafeleft;
+int key_straferight;
 
-	int key_fire;
-	int key_use;
-	int key_strafe;
-	int key_speed;
+int key_fire;
+int key_use;
+int key_strafe;
+int key_speed;
 
-	int mousebfire;
-	int mousebstrafe;
-	int mousebforward;
+int mousebfire;
+int mousebstrafe;
+int mousebforward;
 #endif
 
 int joybfire;
@@ -256,8 +256,7 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 
 	// use two stage accelerative turning
 	// on the keyboard and joystick
-	if(turn)
-		turnheld += ticdup;
+	if(turn) turnheld += ticdup;
 	else turnheld = 0;
 
 	if(turnheld < SLOWTURNTICS) tspeed = 2; // slow turn
@@ -338,12 +337,10 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 	// buttons
 	cmd->chatchar = HU_dequeueChatChar();
 
-	if(joybuttons[joybfire])
-		cmd->buttons |= BT_ATTACK;
+	if(joybuttons[joybfire]) cmd->buttons |= BT_ATTACK;
 
 #ifndef FPSMOVE
-	if(gamekeydown[key_fire])
-		cmd->buttons |= BT_ATTACK;
+	if(gamekeydown[key_fire]) cmd->buttons |= BT_ATTACK;
 
 	// mouse
 	if(mousebuttons[mousebforward]) forward += forwardmove[speed];
