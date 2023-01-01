@@ -99,10 +99,6 @@ void I_InitSound() {
 	for(i = 1; i < NUMSFX; i++) {
 		printf("sfx[%d]: %s\n", i, S_sfx[i].name);
 		t = S_sfx[i];
-		printf("Name: '%s', singu: %d, prio: %d, link: %p, pitch: %d, volume: "
-		       "%d, data: %p, usefulness: %d, lumpnum: %d\n",
-		    t.name, t.singularity, t.priority, t.link, t.pitch, t.volume,
-		    t.data, t.usefulness, t.lumpnum);
 
 		if(!S_sfx[i].link) {
 			S_sfx[i].data = getsfx(S_sfx[i].name, &S_sfx[i].length);
@@ -114,7 +110,6 @@ void I_InitSound() {
 		}
 
 		freq = *((uint16_t *) (S_sfx[i].data - 6));
-		printf("Sample rate: %d\n", freq);
 		alBufferData(buffers[i - 1], AL_FORMAT_MONO8, S_sfx[i].data,
 		    S_sfx[i].length, freq);
 	}
