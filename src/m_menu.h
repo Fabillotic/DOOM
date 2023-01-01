@@ -33,6 +33,9 @@
 // Does all the real work of the menu interaction.
 boolean M_Responder(event_t *ev);
 
+// Used for mouse interaction
+void M_SelectItemByPosition(int x, int y);
+
 // Called by main loop,
 // only used for menu (skull cursor) animation.
 void M_Ticker(void);

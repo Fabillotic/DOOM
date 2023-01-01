@@ -29,6 +29,7 @@
 #include "i_video.h"
 #include "m_argv.h"
 #include "v_video.h"
+#include "m_menu.h"
 
 Display *display;
 Window root;
@@ -68,6 +69,7 @@ void grab_mouse();
 void release_mouse();
 void create_empty_cursor();
 int in_menu();
+void screencoords(int *dx, int *dy, int *dw, int *dh);
 int xlatekey(KeySym sym);
 
 void I_InitGraphics() {
@@ -197,22 +199,9 @@ void I_UpdateNoBlit() {
 }
 
 void I_FinishUpdate() {
-	int i, j, k, vert, dw, dh, dx, dy, x, y;
+	int i, j, k, dw, dh, dx, dy, x, y;
 
-	vert = (float) wwidth / wheight < (float) SCREENWIDTH / SCREENHEIGHT;
-
-	if(!vert) {
-		dh = wheight;
-		dw = (int) (((float) dh / SCREENHEIGHT) * SCREENWIDTH);
-		dy = 0;
-		dx = (wwidth - dw) / 2;
-	}
-	else {
-		dw = wwidth;
-		dh = (int) (((float) dw / SCREENWIDTH) * SCREENHEIGHT);
-		dx = 0;
-		dy = (wheight - dh) / 2;
-	}
+	screencoords(&dx, &dy, &dw, &dh);
 
 	for(i = 0; i < wwidth * wheight; i++) {
 		j = i % wwidth;
@@ -251,6 +240,7 @@ void I_ReadScreen(byte *scr) {
 }
 
 void I_StartTic() {
+	int x, y, dx, dy, dw, dh;
 	XEvent ev;
 	event_t d_event;
 	char buf[256];
@@ -364,7 +354,12 @@ void I_StartTic() {
 					D_PostEvent(&d_event);
 				}
 			}
-			else printf("Motion! x: %d, y: %d\n", ev.xmotion.x, ev.xmotion.y);
+			else {
+				screencoords(&dx, &dy, &dw, &dh);
+				x = (int) (((float) (ev.xmotion.x - dx)) / dw * SCREENWIDTH);
+				y = (int) (((float) (ev.xmotion.y - dy)) / dh * SCREENHEIGHT);
+				M_SelectItemByPosition(x, y);
+			}
 		}
 		else if(ev.type == ConfigureNotify) {
 			wwidth = ev.xconfigure.width;
@@ -402,6 +397,31 @@ void I_StartFrame() {
 int in_menu() {
 	return menuactive || gamestate != GS_LEVEL;
 }
+
+void screencoords(int *dx, int *dy, int *dw, int *dh) {
+	int x, y, w, h, vert;
+
+	vert = (float) wwidth / wheight < (float) SCREENWIDTH / SCREENHEIGHT;
+
+	if(!vert) {
+		h = wheight;
+		w = (int) (((float) h / SCREENHEIGHT) * SCREENWIDTH);
+		y = 0;
+		x = (wwidth - w) / 2;
+	}
+	else {
+		w = wwidth;
+		h = (int) (((float) w / SCREENWIDTH) * SCREENHEIGHT);
+		x = 0;
+		y = (wheight - h) / 2;
+	}
+
+	*dx = x;
+	*dy = y;
+	*dw = w;
+	*dh = h;
+}
+
 
 //
 // Copyright (C) 1993-1996 by id Software, Inc.
