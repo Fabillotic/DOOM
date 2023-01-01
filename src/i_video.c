@@ -25,6 +25,7 @@
 #include <X11/Xutil.h>
 #include "d_main.h"
 #include "doomdef.h"
+#include "doomstat.h"
 #include "i_video.h"
 #include "m_argv.h"
 #include "v_video.h"
@@ -59,10 +60,14 @@ int joytest[8];
 #define JOY_SPEED 'n'
 #endif
 
+#define EVENTMASK (ExposureMask | KeyPressMask | KeyReleaseMask | StructureNotifyMask | FocusChangeMask)
+#define POINTERMASK (ButtonPressMask | ButtonReleaseMask | PointerMotionMask)
+
 void make_image();
 void grab_mouse();
 void release_mouse();
 void create_empty_cursor();
+int in_menu();
 int xlatekey(KeySym sym);
 
 void I_InitGraphics() {
@@ -99,8 +104,7 @@ void I_InitGraphics() {
 
 	colormap = XCreateColormap(display, root, visual.visual, AllocNone);
 	atts = (XSetWindowAttributes){
-	    .event_mask = ExposureMask | KeyPressMask | KeyReleaseMask |
-	                  StructureNotifyMask | FocusChangeMask,
+	    .event_mask = EVENTMASK,
 	    .colormap = colormap,
 	    .override_redirect = False};
 	window = XCreateWindow(display, root, 0, 0, wwidth, wheight, 0, 24,
@@ -116,6 +120,7 @@ void I_InitGraphics() {
 		XNextEvent(display, &ev);
 		if(ev.type == Expose && !ev.xexpose.count) break;
 	}
+	XSelectInput(display, window, EVENTMASK);
 
 	create_empty_cursor();
 #ifdef JOYTEST
@@ -151,12 +156,14 @@ void grab_mouse() {
 		    ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
 		    GrabModeAsync, GrabModeAsync, None, None, CurrentTime);
 	XDefineCursor(display, window, empty_cursor);
+	XSelectInput(display, window, EVENTMASK);
 	mouse_grabbed = 1;
 }
 
 void release_mouse() {
 	if(mouse_grabbed) XUngrabPointer(display, CurrentTime);
 	XUndefineCursor(display, window);
+	XSelectInput(display, window, EVENTMASK | POINTERMASK);
 	mouse_grabbed = 0;
 }
 
@@ -344,18 +351,20 @@ void I_StartTic() {
 			D_PostEvent(&d_event);
 		}
 		else if(ev.type == MotionNotify) {
-			d_event.type = ev_mouse;
+			if(!in_menu()) {
+				d_event.type = ev_mouse;
 
-			d_event.data1 = ((ev.xbutton.state & Button1Mask) > 0);
-			d_event.data1 |= ((ev.xbutton.state & Button2Mask) > 0) << 1;
-			d_event.data1 |= ((ev.xbutton.state & Button3Mask) > 0) << 2;
+				d_event.data1 = ((ev.xmotion.state & Button1Mask) > 0);
+				d_event.data1 |= ((ev.xmotion.state & Button2Mask) > 0) << 1;
+				d_event.data1 |= ((ev.xmotion.state & Button3Mask) > 0) << 2;
 
-			d_event.data2 = (ev.xmotion.x - wwidth / 2) << 2;
-			d_event.data3 = (wheight / 2 - ev.xmotion.y) << 2;
-
-			if(d_event.data2 != 0 || d_event.data3 != 0) {
-				D_PostEvent(&d_event);
+				d_event.data2 = (ev.xmotion.x - wwidth / 2) << 1;
+				d_event.data3 = (wheight / 2 - ev.xmotion.y) << 1;
+				if(d_event.data2 || d_event.data3) {
+					D_PostEvent(&d_event);
+				}
 			}
+			else printf("Motion! x: %d, y: %d\n", ev.xmotion.x, ev.xmotion.y);
 		}
 		else if(ev.type == ConfigureNotify) {
 			wwidth = ev.xconfigure.width;
@@ -364,7 +373,7 @@ void I_StartTic() {
 		}
 		else if(ev.type == FocusIn) {
 			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
-				grab_mouse();
+				if(!in_menu()) grab_mouse();
 			}
 		}
 		else if(ev.type == FocusOut) {
@@ -373,12 +382,25 @@ void I_StartTic() {
 			}
 		}
 	}
-	if(mouse_grabbed)
-		XWarpPointer(
-		    display, None, window, 0, 0, 0, 0, wwidth / 2, wheight / 2);
+	if(mouse_grabbed) {
+		if(in_menu()) {
+			release_mouse();
+		}
+		else {
+			XWarpPointer(display, None, window, 0, 0, 0, 0, wwidth / 2, wheight / 2);
+			XSync(display, False);
+		}
+	}
+	else {
+		if(!in_menu()) grab_mouse();
+	}
 }
 
 void I_StartFrame() {
+}
+
+int in_menu() {
+	return menuactive || gamestate != GS_LEVEL;
 }
 
 //
