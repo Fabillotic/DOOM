@@ -23,6 +23,7 @@
 #include <string.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #include "d_main.h"
 #include "doomdef.h"
 #include "doomstat.h"
@@ -48,6 +49,8 @@ int mouse_grabbed;
 int scale;
 int wwidth;
 int wheight;
+
+int fullscreen;
 
 #ifdef JOYTEST
 int joytest[8];
@@ -76,6 +79,7 @@ void I_InitGraphics() {
 	XSetWindowAttributes atts;
 	XEvent ev;
 	XGCValues vals;
+	Atom wm_state, wm_fullscreen;
 	int screen;
 
 	display = XOpenDisplay(NULL);
@@ -89,6 +93,8 @@ void I_InitGraphics() {
 	if(M_CheckParm("-2")) scale = 2;
 	if(M_CheckParm("-3")) scale = 3;
 	if(M_CheckParm("-4")) scale = 4;
+
+	fullscreen = M_CheckParm("-fullscreen");
 
 	wwidth = SCREENWIDTH * scale;
 	wheight = SCREENHEIGHT * scale;
@@ -114,6 +120,12 @@ void I_InitGraphics() {
 	    CWEventMask | CWColormap | CWOverrideRedirect, &atts);
 	context = XCreateGC(display, window, 0, &vals);
 
+	if(fullscreen) {
+		wm_state = XInternAtom(display, "_NET_WM_STATE", True);
+		wm_fullscreen = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", True);
+		XChangeProperty(display, window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*) &wm_fullscreen, 1);
+	}
+
 	printf("Mapping window...\n");
 	XMapWindow(display, window);
 	XSync(display, False);
@@ -121,6 +133,10 @@ void I_InitGraphics() {
 	while(1) {
 		XNextEvent(display, &ev);
 		if(ev.type == Expose && !ev.xexpose.count) break;
+		if(ev.type == ConfigureNotify) {
+			wwidth = ev.xconfigure.width;
+			wheight = ev.xconfigure.height;
+		}
 	}
 	XSelectInput(display, window, EVENTMASK);
 
@@ -365,6 +381,7 @@ void I_StartTic() {
 			wwidth = ev.xconfigure.width;
 			wheight = ev.xconfigure.height;
 			make_image();
+			printf("ConfigureNotify! width: %d, height: %d\n", wwidth, wheight);
 		}
 		else if(ev.type == FocusIn) {
 			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
