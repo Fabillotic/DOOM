@@ -21,9 +21,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/Xatom.h>
 #include "d_main.h"
 #include "doomdef.h"
 #include "doomstat.h"
@@ -32,18 +29,8 @@
 #include "v_video.h"
 #include "m_menu.h"
 
-Display *display;
-Window root;
-Window window;
-XVisualInfo visual;
-Colormap colormap;
-GC context;
-
-XImage *image;
-unsigned char *image_data;
 unsigned char *palette;
 
-Cursor empty_cursor;
 int mouse_grabbed;
 
 int scale;
@@ -67,26 +54,18 @@ int joytest[8];
 #define EVENTMASK (ExposureMask | KeyPressMask | KeyReleaseMask | StructureNotifyMask | FocusChangeMask)
 #define POINTERMASK (ButtonPressMask | ButtonReleaseMask | PointerMotionMask)
 
-void make_image();
 void grab_mouse();
 void release_mouse();
 void create_empty_cursor();
 int in_menu();
 void screencoords(int *dx, int *dy, int *dw, int *dh);
-int xlatekey(KeySym sym);
+//int xlatekey(KeySym sym);
 
 void I_InitGraphics() {
-	XSetWindowAttributes atts;
-	XEvent ev;
-	XGCValues vals;
-	Atom wm_state, wm_fullscreen;
-	int screen;
-
-	display = XOpenDisplay(NULL);
-	if(!display) {
+	/*if(!display) {
 		printf("Couldn't connect to display!\n");
 		return;
-	}
+	}*/
 	printf("Got display!\n");
 
 	scale = 1;
@@ -99,48 +78,8 @@ void I_InitGraphics() {
 	wwidth = SCREENWIDTH * scale;
 	wheight = SCREENHEIGHT * scale;
 
-	screen = DefaultScreen(display);
-	root = RootWindow(display, screen);
-
-	if(!XMatchVisualInfo(display, screen, 24, TrueColor, &visual)) {
-		printf("Only screens with 24-bit TrueColor are supported!\n");
-		return;
-	}
-	printf("Found visual info!\n");
-
 	mouse_grabbed = 0;
 
-	colormap = XCreateColormap(display, root, visual.visual, AllocNone);
-	atts = (XSetWindowAttributes){
-	    .event_mask = EVENTMASK,
-	    .colormap = colormap,
-	    .override_redirect = False};
-	window = XCreateWindow(display, root, 0, 0, wwidth, wheight, 0, 24,
-	    InputOutput, visual.visual,
-	    CWEventMask | CWColormap | CWOverrideRedirect, &atts);
-	context = XCreateGC(display, window, 0, &vals);
-
-	if(fullscreen) {
-		wm_state = XInternAtom(display, "_NET_WM_STATE", True);
-		wm_fullscreen = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", True);
-		XChangeProperty(display, window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*) &wm_fullscreen, 1);
-	}
-
-	printf("Mapping window...\n");
-	XMapWindow(display, window);
-	XSync(display, False);
-
-	while(1) {
-		XNextEvent(display, &ev);
-		if(ev.type == Expose && !ev.xexpose.count) break;
-		if(ev.type == ConfigureNotify) {
-			wwidth = ev.xconfigure.width;
-			wheight = ev.xconfigure.height;
-		}
-	}
-	XSelectInput(display, window, EVENTMASK);
-
-	create_empty_cursor();
 #ifdef JOYTEST
 	memset(joytest, 0, 8 * sizeof(int));
 #endif
@@ -150,52 +89,15 @@ void I_InitGraphics() {
 	    SCREENWIDTH * SCREENHEIGHT); // Color index, 8-bit per pixel
 	palette = malloc(256 * 3);       // 256 entries, each of them 24-bit
 
-	image = NULL;
-	image_data = NULL;
-
-	make_image();
 	printf("Finished initializing!\n");
 }
 
-void make_image() {
-	if(image) {
-		XDestroyImage(image);
-	}
-
-	// RGB, 8-bit each, actually 32-bit per pixel, cause X11 weirdness
-	image_data = malloc(wwidth * wheight * 4);
-	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0,
-	    (char *) image_data, wwidth, wheight, 8, 4 * wwidth);
-}
-
 void grab_mouse() {
-	if(!mouse_grabbed)
-		XGrabPointer(display, window, True,
-		    ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-		    GrabModeAsync, GrabModeAsync, None, None, CurrentTime);
-	XDefineCursor(display, window, empty_cursor);
-	XSelectInput(display, window, EVENTMASK);
 	mouse_grabbed = 1;
 }
 
 void release_mouse() {
-	if(mouse_grabbed) XUngrabPointer(display, CurrentTime);
-	XUndefineCursor(display, window);
-	XSelectInput(display, window, EVENTMASK | POINTERMASK);
 	mouse_grabbed = 0;
-}
-
-void create_empty_cursor() {
-	XColor col;
-	Pixmap pix;
-
-	col.pixel = 0;
-	col.red = 0;
-	col.flags = DoRed;
-
-	pix = XCreatePixmap(display, root, 1, 1, 1);
-	empty_cursor = XCreatePixmapCursor(display, pix, pix, &col, &col, 0, 0);
-	XFreePixmap(display, pix);
 }
 
 void I_ShutdownGraphics() {
@@ -216,20 +118,23 @@ void I_UpdateNoBlit() {
 
 void I_FinishUpdate() {
 	int i, j, k, dw, dh, dx, dy, x, y;
+	unsigned char *data;
 
 	screencoords(&dx, &dy, &dw, &dh);
+
+	data = malloc(wwidth * wheight * 4);
 
 	for(i = 0; i < wwidth * wheight; i++) {
 		j = i % wwidth;
 		k = i / wwidth;
 
-		image_data[i * 4 + 3] = 255;
+		data[i * 4 + 3] = 255;
 
 		/* Black bars */
 		if(j < dx || j > dx + dw || k < dy || k > dy + dh) {
-			image_data[i * 4 + 0] = 0;
-			image_data[i * 4 + 1] = 0;
-			image_data[i * 4 + 2] = 0;
+			data[i * 4 + 0] = 0;
+			data[i * 4 + 1] = 0;
+			data[i * 4 + 2] = 0;
 		}
 		else {
 			x = (int) (((float) (j - dx)) / dw * SCREENWIDTH);
@@ -237,17 +142,16 @@ void I_FinishUpdate() {
 
 			if(x == SCREENWIDTH || y == SCREENHEIGHT) continue;
 
-			image_data[i * 4 + 0] =
+			data[i * 4 + 0] =
 			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 2];
-			image_data[i * 4 + 1] =
+			data[i * 4 + 1] =
 			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 1];
-			image_data[i * 4 + 2] =
+			data[i * 4 + 2] =
 			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0];
 		}
 	}
 
-	XPutImage(display, window, context, image, 0, 0, 0, 0, wwidth, wheight);
-	XSync(display, False);
+	free(data);
 }
 
 void I_ReadScreen(byte *scr) {
@@ -256,6 +160,7 @@ void I_ReadScreen(byte *scr) {
 }
 
 void I_StartTic() {
+	/*
 	int x, y, dx, dy, dw, dh;
 	XEvent ev;
 	event_t d_event;
@@ -393,14 +298,13 @@ void I_StartTic() {
 				release_mouse();
 			}
 		}
-	}
+	}*/
 	if(mouse_grabbed) {
 		if(in_menu()) {
 			release_mouse();
 		}
 		else {
-			XWarpPointer(display, None, window, 0, 0, 0, 0, wwidth / 2, wheight / 2);
-			XSync(display, False);
+			//Reset pointer
 		}
 	}
 	else {
@@ -443,7 +347,7 @@ void screencoords(int *dx, int *dy, int *dw, int *dh) {
 //
 // Copyright (C) 1993-1996 by id Software, Inc.
 //
-int xlatekey(KeySym sym) {
+/*int xlatekey(KeySym sym) {
 	int rc;
 
 	switch(sym) {
@@ -496,4 +400,4 @@ int xlatekey(KeySym sym) {
 	}
 
 	return rc;
-}
+}*/

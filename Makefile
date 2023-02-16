@@ -2,7 +2,7 @@ CC=gcc # gcc or g++
 
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE # -DJOYTEST # -DUSEASM 
 LDFLAGS=-L/usr/X11R6/lib
-LIBS=-lX11 -lm -lopenal -lfluidsynth
+LIBS=-lm -lopenal -lfluidsynth
 
 # subdirectory for objects
 O=linux
