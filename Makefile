@@ -2,7 +2,7 @@ CC=gcc # gcc or g++
 
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE # -DJOYTEST # -DUSEASM 
 LDFLAGS=-L/usr/X11R6/lib
-LIBS=-lwayland-client -lm -lopenal -lfluidsynth
+LIBS=-lwayland-client -lxkbcommon -lm -lopenal -lfluidsynth
 
 # subdirectory for objects
 O=linux
