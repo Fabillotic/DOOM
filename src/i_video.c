@@ -31,6 +31,8 @@
 #include <xkbcommon/xkbcommon.h>
 #include "xdg-shell.h"
 #include "xdg-decoration.h"
+#include "pointer-constraints.h"
+#include "relative-pointer.h"
 
 #include "d_main.h"
 #include "doomdef.h"
@@ -51,9 +53,14 @@ struct wl_shm *shm = NULL;
 struct wl_seat *seat = NULL;
 struct xdg_wm_base *wm_base = NULL;
 struct zxdg_decoration_manager_v1 *deco_manager = NULL;
+struct zwp_relative_pointer_manager_v1 *relative_pointer_manager = NULL;
+struct zwp_pointer_constraints_v1 *pointer_constraints = NULL;
 
 struct wl_surface *surface = NULL;
 struct xdg_surface *window = NULL;
+struct wl_pointer *pointer;
+struct wl_keyboard *keyboard;
+struct zwp_locked_pointer_v1 *locked_pointer = NULL;
 
 struct xkb_context *xkb_context;
 struct xkb_keymap *xkb_keymap;
@@ -67,6 +74,7 @@ struct xdg_wm_base_listener wm_base_listener;
 struct wl_buffer_listener buffer_listener;
 struct zxdg_toplevel_decoration_v1_listener decoration_listener;
 struct xdg_toplevel_listener toplevel_listener;
+struct zwp_relative_pointer_v1_listener relative_pointer_listener;
 struct wl_callback_listener frame_listener;
 
 unsigned char *palette;
@@ -132,6 +140,7 @@ void toplevel_handle_bounds(void *data, struct xdg_toplevel *t, int32_t w, int32
 void toplevel_handle_wm_caps(void *data, struct xdg_toplevel *t, struct wl_array *caps);
 void toplevel_handle_close(void *data, struct xdg_toplevel *t);
 void surface_handle_frame(void *data, struct wl_callback *cb, uint32_t time);
+void relative_pointer_handle_motion(void *data, struct zwp_relative_pointer_v1 *p, uint32_t utime_hi, uint32_t utime_lo, wl_fixed_t dx, wl_fixed_t dy, wl_fixed_t dx_unaccel, wl_fixed_t dy_unaccel);
 int doo_display_poll(struct wl_display *display, short int events, int timeout);
 int doo_display_dispatch(struct wl_display *display, int read_timeout);
 void randname(char *buf);
@@ -141,10 +150,9 @@ int xlatekey(xkb_keysym_t sym);
 
 void I_InitGraphics() {
 	struct wl_registry *registry;
-	struct wl_pointer *pointer;
-	struct wl_keyboard *keyboard;
 	struct xdg_toplevel *toplevel;
 	struct zxdg_toplevel_decoration_v1 *decoration;
+	struct zwp_relative_pointer_v1 *relative_pointer;
 	struct wl_callback *callback;
 
 	init_listeners();
@@ -203,6 +211,15 @@ void I_InitGraphics() {
 		return;
 	}
 
+	if(!relative_pointer_manager) {
+		printf("Didn't receive relative_pointer_manager!\n");
+		return;
+	}
+
+	if(!pointer_constraints) {
+		printf("Didn't received pointer_constraints!\n");
+	}
+
 	if(!deco_manager) {
 		printf("Didn't receive decoration manager! No big issue, we just won't have decorations.\n");
 	}
@@ -217,6 +234,9 @@ void I_InitGraphics() {
 
 	pointer = wl_seat_get_pointer(seat);
 	wl_pointer_add_listener(pointer, &pointer_listener, NULL);
+
+	relative_pointer = zwp_relative_pointer_manager_v1_get_relative_pointer(relative_pointer_manager, pointer);
+	zwp_relative_pointer_v1_add_listener(relative_pointer, &relative_pointer_listener, NULL);
 
 	keyboard = wl_seat_get_keyboard(seat);
 	wl_keyboard_add_listener(keyboard, &keyboard_listener, NULL);
@@ -290,13 +310,18 @@ void init_listeners() {
 	frame_listener = (struct wl_callback_listener) {
 		.done = surface_handle_frame
 	};
+	relative_pointer_listener = (struct zwp_relative_pointer_v1_listener) {
+		.relative_motion = relative_pointer_handle_motion
+	};
 }
 
 void grab_mouse() {
+	locked_pointer = zwp_pointer_constraints_v1_lock_pointer(pointer_constraints, surface, pointer, NULL, 2);
 	mouse_grabbed = 1;
 }
 
 void release_mouse() {
+	zwp_locked_pointer_v1_destroy(locked_pointer);
 	mouse_grabbed = 0;
 }
 
@@ -524,17 +549,8 @@ void I_StartTic() {
 			}
 		}
 	}*/
-	if(mouse_grabbed) {
-		if(in_menu()) {
-			release_mouse();
-		}
-		else {
-			//Reset pointer
-		}
-	}
-	else {
-		if(!in_menu()) grab_mouse();
-	}
+	if(mouse_grabbed && in_menu()) release_mouse();
+	if(!mouse_grabbed && !in_menu()) grab_mouse();
 }
 
 void I_StartFrame() {
@@ -586,6 +602,12 @@ void registry_handle_global(void *data, struct wl_registry *registry, uint32_t n
 	else if(!strcmp(interface, "zxdg_decoration_manager_v1")) {
 		deco_manager = wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, 1);
 	}
+	else if(!strcmp(interface, "zwp_relative_pointer_manager_v1")) {
+		relative_pointer_manager = wl_registry_bind(registry, name, &zwp_relative_pointer_manager_v1_interface, 1);
+	}
+	else if(!strcmp(interface, "zwp_pointer_constraints_v1")) {
+		pointer_constraints = wl_registry_bind(registry, name, &zwp_pointer_constraints_v1_interface, 1);
+	}
 }
 
 void registry_handle_global_remove(void *data, struct wl_registry *registry, uint32_t name) {
@@ -598,34 +620,33 @@ void pointer_handle_leave(void *data, struct wl_pointer *p, uint32_t serial, str
 }
 
 void pointer_handle_motion(void *data, struct wl_pointer *p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
-	event_t d_event;
 	int dx, dy, dw, dh, x2, y2;
 
-	if(!in_menu()) {
-		d_event.type = ev_mouse;
-
-		//d_event.data1 = ((ev.xmotion.state & Button1Mask) > 0);
-		//d_event.data1 |= ((ev.xmotion.state & Button2Mask) > 0) << 1;
-		//d_event.data1 |= ((ev.xmotion.state & Button3Mask) > 0) << 2;
-
-		//d_event.data2 = (ev.xmotion.x - wwidth / 2) << 1;
-		//d_event.data3 = (wheight / 2 - ev.xmotion.y) << 1;
-
-		d_event.data1 = buttons[0];
-		d_event.data1 |= buttons[1] << 1;
-		d_event.data1 |= buttons[2] << 2;
-		d_event.data2 = (wl_fixed_to_int(x) - wwidth / 2) << 1;
-		d_event.data3 = (wl_fixed_to_int(y) - wheight / 2) << 1;
-
-		if(d_event.data2 || d_event.data3) {
-			D_PostEvent(&d_event);
-		}
-	}
-	else {
+	if(in_menu()) {
 		screencoords(&dx, &dy, &dw, &dh);
 		x2 = (int) (((float) (wl_fixed_to_int(x) - dx)) / dw * SCREENWIDTH);
 		y2 = (int) (((float) (wl_fixed_to_int(y) - dy)) / dh * SCREENHEIGHT);
 		M_SelectItemByPosition(x2, y2);
+	}
+}
+
+void relative_pointer_handle_motion(void *data, struct zwp_relative_pointer_v1 *p, uint32_t utime_hi, uint32_t utime_lo, wl_fixed_t dx, wl_fixed_t dy, wl_fixed_t dx_unaccel, wl_fixed_t dy_unaccel) {
+	event_t d_event;
+
+	if(!in_menu()) {
+		d_event.type = ev_mouse;
+
+		d_event.data1 = buttons[0];
+		d_event.data1 |= buttons[1] << 1;
+		d_event.data1 |= buttons[2] << 2;
+		//d_event.data2 = (wl_fixed_to_int(x) - wwidth / 2) << 1;
+		//d_event.data3 = (wl_fixed_to_int(y) - wheight / 2) << 1;
+		d_event.data2 = (int) (wl_fixed_to_double(dx_unaccel) * 50.0);
+		d_event.data3 = (int) (wl_fixed_to_double(dy_unaccel) * 50.0);
+
+		if(d_event.data2 || d_event.data3) {
+			D_PostEvent(&d_event);
+		}
 	}
 }
 
