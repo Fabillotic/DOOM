@@ -48,18 +48,19 @@ uint32_t last_frame = UINT32_MAX;
 
 struct wl_compositor *compositor = NULL;
 struct wl_shm *shm = NULL;
+struct wl_seat *seat = NULL;
 struct xdg_wm_base *wm_base = NULL;
 struct wl_surface *surface = NULL;
 struct xdg_surface *window = NULL;
 struct zxdg_decoration_manager_v1 *deco_manager = NULL;
 
-struct wl_registry_listener reg_listen;
-struct xdg_surface_listener surf_listen;
-struct xdg_wm_base_listener wm_listen;
-struct wl_buffer_listener buf_listen;
-struct zxdg_toplevel_decoration_v1_listener deco_listen;
-struct xdg_toplevel_listener top_listen;
-struct wl_callback_listener frame_listen;
+struct wl_registry_listener registry_listener;
+struct xdg_surface_listener window_listener;
+struct xdg_wm_base_listener wm_base_listener;
+struct wl_buffer_listener buffer_listener;
+struct zxdg_toplevel_decoration_v1_listener decoration_listener;
+struct xdg_toplevel_listener toplevel_listener;
+struct wl_callback_listener frame_listener;
 
 unsigned char *palette;
 
@@ -83,9 +84,7 @@ int joytest[8];
 #define JOY_SPEED 'n'
 #endif
 
-#define EVENTMASK (ExposureMask | KeyPressMask | KeyReleaseMask | StructureNotifyMask | FocusChangeMask)
-#define POINTERMASK (ButtonPressMask | ButtonReleaseMask | PointerMotionMask)
-
+void init_listeners();
 void draw();
 void grab_mouse();
 void release_mouse();
@@ -116,13 +115,7 @@ void I_InitGraphics() {
 	struct zxdg_toplevel_decoration_v1 *decoration;
 	struct wl_callback *callback;
 
-	reg_listen = (struct wl_registry_listener){.global = registry_handle_global, .global_remove = registry_handle_global_remove};
-	surf_listen = (struct xdg_surface_listener){.configure = surface_handle_configure};
-	wm_listen = (struct xdg_wm_base_listener){.ping = wm_handle_ping};
-	buf_listen = (struct wl_buffer_listener){.release = buffer_handle_release};
-	deco_listen = (struct zxdg_toplevel_decoration_v1_listener){.configure = decoration_configure};
-	top_listen = (struct xdg_toplevel_listener){.configure = toplevel_handle_configure, .configure_bounds = toplevel_handle_bounds, .wm_capabilities = toplevel_handle_wm_caps, .close = toplevel_handle_close};
-	frame_listen = (struct wl_callback_listener){.done = surface_handle_frame};
+	init_listeners();
 
 	scale = 1;
 	if(M_CheckParm("-2")) scale = 2;
@@ -153,11 +146,16 @@ void I_InitGraphics() {
 	printf("Got display!\n");
 
 	registry = wl_display_get_registry(display);
-	wl_registry_add_listener(registry, &reg_listen, NULL);
+	wl_registry_add_listener(registry, &registry_listener, NULL);
 	wl_display_roundtrip(display);
 	
 	if(!compositor) {
 		printf("Didn't receive compositor!\n");
+		return;
+	}
+
+	if(!seat) {
+		printf("Didn't receive seat!\n");
 		return;
 	}
 
@@ -176,24 +174,24 @@ void I_InitGraphics() {
 	}
 
 	printf("adding listener...\n");
-	xdg_wm_base_add_listener(wm_base, &wm_listen, NULL);
+	xdg_wm_base_add_listener(wm_base, &wm_base_listener, NULL);
 
 	surface = wl_compositor_create_surface(compositor);
 	printf("surface: %p\n", surface);
 	callback = wl_surface_frame(surface);
-	wl_callback_add_listener(callback, &frame_listen, NULL);
+	wl_callback_add_listener(callback, &frame_listener, NULL);
 
 	window = xdg_wm_base_get_xdg_surface(wm_base, surface);
 	printf("window: %p\n", window);
 	toplevel = xdg_surface_get_toplevel(window);
 	printf("toplevel: %p\n", toplevel);
-	xdg_surface_add_listener(window, &surf_listen, NULL);
+	xdg_surface_add_listener(window, &window_listener, NULL);
 	xdg_toplevel_set_title(toplevel, "DOOM");
 	xdg_toplevel_set_app_id(toplevel, "doom");
-	xdg_toplevel_add_listener(toplevel, &top_listen, NULL);
+	xdg_toplevel_add_listener(toplevel, &toplevel_listener, NULL);
 	if(deco_manager) {
 		decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(deco_manager, toplevel);
-		zxdg_toplevel_decoration_v1_add_listener(decoration, &deco_listen, NULL);
+		zxdg_toplevel_decoration_v1_add_listener(decoration, &decoration_listener, NULL);
 		zxdg_toplevel_decoration_v1_set_mode(decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 	}
 
@@ -203,6 +201,34 @@ void I_InitGraphics() {
 	wl_display_dispatch(display);
 
 	printf("Finished initializing!\n");
+}
+
+void init_listeners() {
+	registry_listener = (struct wl_registry_listener){
+		.global = registry_handle_global,
+		.global_remove = registry_handle_global_remove
+	};
+	window_listener = (struct xdg_surface_listener){
+		.configure = surface_handle_configure
+	};
+	wm_base_listener = (struct xdg_wm_base_listener){
+		.ping = wm_handle_ping
+	};
+	buffer_listener = (struct wl_buffer_listener){
+		.release = buffer_handle_release
+	};
+	decoration_listener = (struct zxdg_toplevel_decoration_v1_listener){
+		.configure = decoration_configure
+	};
+	toplevel_listener = (struct xdg_toplevel_listener){
+		.configure = toplevel_handle_configure,
+		.configure_bounds = toplevel_handle_bounds,
+		.wm_capabilities = toplevel_handle_wm_caps,
+		.close = toplevel_handle_close
+	};
+	frame_listener = (struct wl_callback_listener){
+		.done = surface_handle_frame
+	};
 }
 
 void grab_mouse() {
@@ -285,7 +311,7 @@ void draw() {
 		}
 
 		munmap(data, size);
-		wl_buffer_add_listener(buffer, &buf_listen, NULL);
+		wl_buffer_add_listener(buffer, &buffer_listener, NULL);
 		wl_surface_attach(surface, buffer, 0, 0);
 		wl_surface_damage(surface, 0, 0, wwidth, wheight);
 		wl_surface_commit(surface);
@@ -490,6 +516,9 @@ void registry_handle_global(void *data, struct wl_registry *registry, uint32_t n
 	else if(!strcmp(interface, "wl_shm")) {
 		shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
 	}
+	else if(!strcmp(interface, "wl_seat")) {
+		seat = wl_registry_bind(registry, name, &wl_seat_interface, 8);
+	}
 	else if(!strcmp(interface, "xdg_wm_base")) {
 		wm_base = wl_registry_bind(registry, name, &xdg_wm_base_interface, 1);
 	}
@@ -548,7 +577,7 @@ void surface_handle_frame(void *data, struct wl_callback *cb, uint32_t time) {
 	wl_callback_destroy(cb);
 
 	cb = wl_surface_frame(surface);
-	wl_callback_add_listener(cb, &frame_listen, NULL);
+	wl_callback_add_listener(cb, &frame_listener, NULL);
 
 	if(last_frame == UINT32_MAX || time - last_frame > 10) {
 		draw();
