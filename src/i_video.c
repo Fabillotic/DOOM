@@ -522,12 +522,10 @@ void wm_handle_ping(void *data, struct xdg_wm_base *b, uint32_t serial) {
 
 void decoration_configure(void *data, struct zxdg_toplevel_decoration_v1 *deco, uint32_t mode) {
 	printf("Decoration configure! Mode: %d\n", mode);
-	xdg_surface_ack_configure(window, 0);
 }
 
 void toplevel_handle_configure(void *data, struct xdg_toplevel *t, int32_t w, int32_t h, struct wl_array *states) {
 	if(w > 0 && h > 0) {
-		xdg_surface_ack_configure(window, 0);
 		wwidth = w;
 		wheight = h;
 	}
