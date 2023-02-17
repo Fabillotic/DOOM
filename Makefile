@@ -2,7 +2,7 @@ CC=gcc # gcc or g++
 
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE # -DJOYTEST # -DUSEASM 
 LDFLAGS=-L/usr/X11R6/lib
-LIBS=-lm -lopenal -lfluidsynth
+LIBS=-lwayland-client -lm -lopenal -lfluidsynth
 
 # subdirectory for objects
 O=linux
@@ -81,7 +81,9 @@ OBJS=					\
 		$(O)/z_zone.o		\
 		$(O)/info.o		\
 		$(O)/sounds.o		\
-		$(O)/i_main.o
+		$(O)/i_main.o		\
+		$(O)/xdg-shell.o	\
+		$(O)/xdg-decoration.o
 
 all:	 $(O)/$(BIN)
 
