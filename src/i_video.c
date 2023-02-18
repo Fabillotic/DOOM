@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <time.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -84,6 +85,7 @@ int offset = 0;
 
 uint32_t last_frame = UINT32_MAX;
 
+int last_mouse_grabbed;
 int mouse_grabbed;
 
 int scale;
@@ -106,6 +108,7 @@ int joytest[8];
 
 int buttons[3];
 
+void* start_display(void *args);
 void init_listeners();
 void draw();
 void grab_mouse();
@@ -149,14 +152,6 @@ int allocate_shm_file(size_t size);
 int xlatekey(xkb_keysym_t sym);
 
 void I_InitGraphics() {
-	struct wl_registry *registry;
-	struct xdg_toplevel *toplevel;
-	struct zxdg_toplevel_decoration_v1 *decoration;
-	struct zwp_relative_pointer_v1 *relative_pointer;
-	struct wl_callback *callback;
-
-	init_listeners();
-
 	scale = 1;
 	if(M_CheckParm("-2")) scale = 2;
 	if(M_CheckParm("-3")) scale = 3;
@@ -168,6 +163,7 @@ void I_InitGraphics() {
 	wheight = SCREENHEIGHT * scale;
 
 	mouse_grabbed = 0;
+	last_mouse_grabbed = 0;
 
 #ifdef JOYTEST
 	memset(joytest, 0, 8 * sizeof(int));
@@ -180,10 +176,27 @@ void I_InitGraphics() {
 	    SCREENWIDTH * SCREENHEIGHT); // Color index, 8-bit per pixel
 	palette = malloc(256 * 3);       // 256 entries, each of them 24-bit
 
+	printf("Starting wayland thread...\n");
+
+	pthread_t thread;
+	pthread_create(&thread, NULL, start_display, NULL);
+
+	printf("Thread started!\n");
+}
+
+void* start_display(void *args) {
+	struct wl_registry *registry;
+	struct xdg_toplevel *toplevel;
+	struct zxdg_toplevel_decoration_v1 *decoration;
+	struct zwp_relative_pointer_v1 *relative_pointer;
+	struct wl_callback *callback;
+
+	init_listeners();
+
 	display = wl_display_connect(NULL);
 	if(!display) {
 		printf("Couldn't connect to display!\n");
-		return;
+		return NULL;
 	}
 	printf("Got display!\n");
 
@@ -193,31 +206,32 @@ void I_InitGraphics() {
 	
 	if(!compositor) {
 		printf("Didn't receive compositor!\n");
-		return;
+		return NULL;
 	}
 
 	if(!seat) {
 		printf("Didn't receive seat!\n");
-		return;
+		return NULL;
 	}
 
 	if(!shm) {
 		printf("Didn't receive shm!\n");
-		return;
+		return NULL;
 	}
 
 	if(!wm_base) {
 		printf("Didn't receive wm_base!\n");
-		return;
+		return NULL;
 	}
 
 	if(!relative_pointer_manager) {
 		printf("Didn't receive relative_pointer_manager!\n");
-		return;
+		return NULL;
 	}
 
 	if(!pointer_constraints) {
 		printf("Didn't received pointer_constraints!\n");
+		return NULL;
 	}
 
 	if(!deco_manager) {
@@ -260,9 +274,20 @@ void I_InitGraphics() {
 	printf("committing...\n");
 	wl_surface_commit(surface);
 
-	wl_display_dispatch(display);
-
 	printf("Finished initializing!\n");
+
+	while(1) {
+		if(mouse_grabbed && !last_mouse_grabbed) {
+			locked_pointer = zwp_pointer_constraints_v1_lock_pointer(pointer_constraints, surface, pointer, NULL, 2);
+		}
+		if(!mouse_grabbed && last_mouse_grabbed) {
+			zwp_locked_pointer_v1_destroy(locked_pointer);
+		}
+		last_mouse_grabbed = mouse_grabbed;
+		doo_display_dispatch(display, 1);
+	}
+
+	return NULL;
 }
 
 void init_listeners() {
@@ -316,12 +341,10 @@ void init_listeners() {
 }
 
 void grab_mouse() {
-	locked_pointer = zwp_pointer_constraints_v1_lock_pointer(pointer_constraints, surface, pointer, NULL, 2);
 	mouse_grabbed = 1;
 }
 
 void release_mouse() {
-	zwp_locked_pointer_v1_destroy(locked_pointer);
 	mouse_grabbed = 0;
 }
 
@@ -342,7 +365,7 @@ void I_UpdateNoBlit() {
 }
 
 void I_FinishUpdate() {
-	doo_display_dispatch(display, 1);
+	//doo_display_dispatch(display, 1);
 }
 
 void draw() {
@@ -410,145 +433,6 @@ void I_ReadScreen(byte *scr) {
 }
 
 void I_StartTic() {
-	/*
-	int x, y, dx, dy, dw, dh;
-	XEvent ev;
-	event_t d_event;
-	char buf[256];
-	KeySym sym;
-
-	while(XPending(display)) {
-		XNextEvent(display, &ev);
-
-		if(ev.type == KeyPress) {
-			d_event.type = ev_keydown;
-			ev.xkey.state =
-			    ev.xkey.state & (~(ControlMask | LockMask | ShiftMask));
-			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
-			d_event.data1 = xlatekey(sym);
-			D_PostEvent(&d_event);
-
-#ifdef JOYTEST
-			if(d_event.data1 == JOY_FORWARD) joytest[0] = 1;
-			else if(d_event.data1 == JOY_LEFT) joytest[1] = 1;
-			else if(d_event.data1 == JOY_BACK) joytest[2] = 1;
-			else if(d_event.data1 == JOY_RIGHT) joytest[3] = 1;
-			else if(d_event.data1 == JOY_FIRE) joytest[4] = 1;
-			else if(d_event.data1 == JOY_STRAFE) joytest[5] = 1;
-			else if(d_event.data1 == JOY_USE) joytest[6] = 1;
-			else if(d_event.data1 == JOY_SPEED) joytest[7] = 1;
-
-			d_event.type = ev_joystick;
-			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) |
-			                (joytest[7] << 3);
-			d_event.data2 =
-			    (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
-			d_event.data3 =
-			    (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
-			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
-			    d_event.data1, d_event.data2, d_event.data3);
-			D_PostEvent(&d_event);
-#endif
-		}
-		else if(ev.type == KeyRelease) {
-			d_event.type = ev_keyup;
-			ev.xkey.state =
-			    ev.xkey.state & (~(ControlMask | LockMask | ShiftMask));
-			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
-			d_event.data1 = xlatekey(sym);
-			D_PostEvent(&d_event);
-
-#ifdef JOYTEST
-			if(d_event.data1 == JOY_FORWARD) joytest[0] = 0;
-			else if(d_event.data1 == JOY_LEFT) joytest[1] = 0;
-			else if(d_event.data1 == JOY_BACK) joytest[2] = 0;
-			else if(d_event.data1 == JOY_RIGHT) joytest[3] = 0;
-			else if(d_event.data1 == JOY_FIRE) joytest[4] = 0;
-			else if(d_event.data1 == JOY_STRAFE) joytest[5] = 0;
-			else if(d_event.data1 == JOY_USE) joytest[6] = 0;
-			else if(d_event.data1 == JOY_SPEED) joytest[7] = 0;
-
-			d_event.type = ev_joystick;
-			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) |
-			                (joytest[7] << 3);
-			d_event.data2 =
-			    (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
-			d_event.data3 =
-			    (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
-			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
-			    d_event.data1, d_event.data2, d_event.data3);
-			D_PostEvent(&d_event);
-#endif
-		}
-		else if(ev.type == ButtonPress) {
-			d_event.type = ev_mouse;
-
-			if(ev.xbutton.state & Button1Mask) d_event.data1 |= 1;
-			if(ev.xbutton.state & Button2Mask) d_event.data1 |= 2;
-			if(ev.xbutton.state & Button3Mask) d_event.data1 |= 4;
-
-			if(ev.xbutton.button == Button1) d_event.data1 |= 1;
-			if(ev.xbutton.button == Button2) d_event.data1 |= 2;
-			if(ev.xbutton.button == Button3) d_event.data1 |= 4;
-
-			d_event.data2 = 0;
-			d_event.data3 = 0;
-
-			D_PostEvent(&d_event);
-		}
-		else if(ev.type == ButtonRelease) {
-			d_event.type = ev_mouse;
-
-			d_event.data1 = ((ev.xbutton.state & Button1Mask) > 0);
-			d_event.data1 |= ((ev.xbutton.state & Button2Mask) > 0) << 1;
-			d_event.data1 |= ((ev.xbutton.state & Button3Mask) > 0) << 2;
-			if(ev.xbutton.button == Button1) d_event.data1 &= ~(1 << 0);
-			if(ev.xbutton.button == Button2) d_event.data1 &= ~(1 << 1);
-			if(ev.xbutton.button == Button3) d_event.data1 &= ~(1 << 2);
-
-			d_event.data2 = 0;
-			d_event.data3 = 0;
-
-			D_PostEvent(&d_event);
-		}
-		else if(ev.type == MotionNotify) {
-			if(!in_menu()) {
-				d_event.type = ev_mouse;
-
-				d_event.data1 = ((ev.xmotion.state & Button1Mask) > 0);
-				d_event.data1 |= ((ev.xmotion.state & Button2Mask) > 0) << 1;
-				d_event.data1 |= ((ev.xmotion.state & Button3Mask) > 0) << 2;
-
-				d_event.data2 = (ev.xmotion.x - wwidth / 2) << 1;
-				d_event.data3 = (wheight / 2 - ev.xmotion.y) << 1;
-				if(d_event.data2 || d_event.data3) {
-					D_PostEvent(&d_event);
-				}
-			}
-			else {
-				screencoords(&dx, &dy, &dw, &dh);
-				x = (int) (((float) (ev.xmotion.x - dx)) / dw * SCREENWIDTH);
-				y = (int) (((float) (ev.xmotion.y - dy)) / dh * SCREENHEIGHT);
-				M_SelectItemByPosition(x, y);
-			}
-		}
-		else if(ev.type == ConfigureNotify) {
-			wwidth = ev.xconfigure.width;
-			wheight = ev.xconfigure.height;
-			make_image();
-			printf("ConfigureNotify! width: %d, height: %d\n", wwidth, wheight);
-		}
-		else if(ev.type == FocusIn) {
-			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
-				if(!in_menu()) grab_mouse();
-			}
-		}
-		else if(ev.type == FocusOut) {
-			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
-				release_mouse();
-			}
-		}
-	}*/
 	if(mouse_grabbed && in_menu()) release_mouse();
 	if(!mouse_grabbed && !in_menu()) grab_mouse();
 }
@@ -641,8 +525,8 @@ void relative_pointer_handle_motion(void *data, struct zwp_relative_pointer_v1 *
 		d_event.data1 |= buttons[2] << 2;
 		//d_event.data2 = (wl_fixed_to_int(x) - wwidth / 2) << 1;
 		//d_event.data3 = (wl_fixed_to_int(y) - wheight / 2) << 1;
-		d_event.data2 = (int) (wl_fixed_to_double(dx_unaccel) * 50.0);
-		d_event.data3 = (int) (wl_fixed_to_double(dy_unaccel) * 50.0);
+		d_event.data2 = (int) (wl_fixed_to_double(dx) * 20.0);
+		d_event.data3 = (int) (wl_fixed_to_double(dy) * 20.0);
 
 		if(d_event.data2 || d_event.data3) {
 			D_PostEvent(&d_event);
@@ -794,7 +678,7 @@ void surface_handle_configure(void *d, struct xdg_surface *s, uint32_t serial) {
 
 	if(!first_frame) {
 		draw();
-		doo_display_dispatch(display, 1);
+		//doo_display_dispatch(display, 1);
 	}
 	first_frame = 1;
 }
@@ -836,7 +720,7 @@ void surface_handle_frame(void *data, struct wl_callback *cb, uint32_t time) {
 
 	if(last_frame == UINT32_MAX || time - last_frame > 10) {
 		draw();
-		doo_display_dispatch(display, 1);
+		//doo_display_dispatch(display, 1);
 		last_frame = time;
 	}
 }
