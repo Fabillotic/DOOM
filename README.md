@@ -33,10 +33,9 @@ I recommend you buy a copy of the original game through Steam.
 1. Clone the code
 2. Edit the `SOUNDFONT=` line in the `Makefile` to point to the soundfont you wish to use
 3. Compile with `make`
-4. Run `make run`, it's going to tell you that no WADfiles were found
-5. Put the WADfile in the `wads` folder
-6. Run it again
-7. Have fun!
+4. Put the WADfile in the `wads` folder
+5. Run `make run`
+6. Have fun!
 
 ## Movement
 

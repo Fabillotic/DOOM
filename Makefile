@@ -94,9 +94,6 @@ style:
 $(O):
 	mkdir -p $(O)
 
-$(WADS):
-	mkdir -p $(WADS)
-
 $(O)/$(BIN):	$(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) \
 	-o $(O)/$(BIN) $(LIBS)
@@ -104,7 +101,7 @@ $(O)/$(BIN):	$(OBJS)
 $(O)/%.o: $(SRC)/%.c | $(O)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-run: $(O)/$(BIN) | $(WADS)
+run: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3
 
 .PHONY: all clean run style
