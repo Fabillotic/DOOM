@@ -1175,6 +1175,7 @@ boolean M_Responder(event_t *ev) {
 
 	case KEY_UPARROW:
 		do {
+			if(itemOn < 0) itemOn = 0;
 			if(!itemOn) itemOn = currentMenu->numitems - 1;
 			else itemOn--;
 			S_StartSound(NULL, sfx_pstop);
@@ -1183,6 +1184,7 @@ boolean M_Responder(event_t *ev) {
 		return true;
 
 	case KEY_LEFTARROW:
+		if(itemOn < 0) return true;
 		if(currentMenu->menuitems[itemOn].routine &&
 		    currentMenu->menuitems[itemOn].status == 2) {
 			S_StartSound(NULL, sfx_stnmov);
@@ -1191,6 +1193,7 @@ boolean M_Responder(event_t *ev) {
 		return true;
 
 	case KEY_RIGHTARROW:
+		if(itemOn < 0) return true;
 		if(currentMenu->menuitems[itemOn].routine &&
 		    currentMenu->menuitems[itemOn].status == 2) {
 			S_StartSound(NULL, sfx_stnmov);
@@ -1199,6 +1202,7 @@ boolean M_Responder(event_t *ev) {
 		return true;
 
 	case KEY_ENTER:
+		if(itemOn < 0) return true;
 		if(currentMenu->menuitems[itemOn].routine &&
 		    currentMenu->menuitems[itemOn].status) {
 			currentMenu->lastOn = itemOn;
@@ -1229,6 +1233,7 @@ boolean M_Responder(event_t *ev) {
 		return true;
 
 	default:
+		if(itemOn < 0) return false;
 		for(i = itemOn + 1; i < currentMenu->numitems; i++)
 			if(currentMenu->menuitems[i].alphaKey == ch) {
 				itemOn = i;
@@ -1257,6 +1262,7 @@ void M_SelectItemByPosition(int x, int y) {
 				itemOn = i;
 			}
 		}
+		else itemOn = -1;
 	}
 }
 
@@ -1329,6 +1335,7 @@ void M_Drawer(void) {
 	}
 
 	// DRAW SKULL
+	if(itemOn >= 0)
 	V_DrawPatchDirect(x + SKULLXOFF, currentMenu->y - 5 + itemOn * LINEHEIGHT,
 	    0, W_CacheLumpName(skullName[whichSkull], PU_CACHE));
 }
