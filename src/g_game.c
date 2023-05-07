@@ -1323,8 +1323,10 @@ void G_DoPlayDemo(void) {
 		    "Demo is from a different game version! Game version: %d, demo "
 		    "version: %d\n",
 		    VERSION, *demo_p);
+#ifndef IGNORE_DEMO_VERSION
 		gameaction = ga_nothing;
 		return;
+#endif
 	}
 	demo_p++;
 
