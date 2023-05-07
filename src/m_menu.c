@@ -1262,7 +1262,7 @@ void M_SelectItemByPosition(int x, int y) {
 	if(menuactive) {
 		ydiff = y - currentMenu->y;
 		i = ydiff / LINEHEIGHT;
-		if(i >= 0 && i < currentMenu->numitems) {
+		if(ydiff >= 0 && i >= 0 && i < currentMenu->numitems) {
 			mouseInMenu = true;
 			if(currentMenu->menuitems[i].status != -1) {
 				itemOn = i;
