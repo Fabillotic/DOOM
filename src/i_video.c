@@ -184,8 +184,9 @@ void I_InitGraphics() {
 		"#version 330 core\n\
 		layout(location = 0) in vec2 pos;\n\
 		layout(location = 1) in vec2 tex;\n\
+		uniform vec2 aspect_scale;\n\
 		out vec2 uv;\n\
-		void main() {gl_Position = vec4(pos, 0.0, 1.0);uv = tex;}\n\
+		void main() {gl_Position = vec4(pos * aspect_scale, 0.0, 1.0);uv = tex;}\n\
 		",
 		NULL,
 		"#version 330 core\n\
@@ -250,6 +251,7 @@ void I_InitGraphics() {
 #ifndef OPENGL
 	image = NULL;
 #else
+	image_data = malloc(SCREENWIDTH * SCREENHEIGHT * 3);
 	glViewport(0, 0, wwidth, wheight);
 #endif
 
@@ -262,15 +264,9 @@ void make_image() {
 	if(image) {
 		XDestroyImage(image);
 	}
-#else
-	if(image_data) {
-		free(image_data);
-	}
-#endif
 
 	// RGB, 8-bit each, actually 32-bit per pixel, cause X11 weirdness
 	image_data = malloc(wwidth * wheight * 4);
-#ifndef OPENGL
 	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0,
 	    (char *) image_data, wwidth, wheight, 8, 4 * wwidth);
 #endif
@@ -324,14 +320,16 @@ void I_UpdateNoBlit() {
 
 void I_FinishUpdate() {
 	int i, j, k, dw, dh, dx, dy, x, y;
+	float aspect_scale_x, aspect_scale_y;
 
 #ifdef OPENGL
-	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 #endif
 
 	screencoords(&dx, &dy, &dw, &dh);
 
+#ifndef OPENGL
 	for(i = 0; i < wwidth * wheight; i++) {
 		j = i % wwidth;
 		k = i / wwidth;
@@ -358,6 +356,15 @@ void I_FinishUpdate() {
 			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0];
 		}
 	}
+#else
+	for(i = 0; i < SCREENWIDTH * SCREENHEIGHT; i++) {
+		x = i % SCREENWIDTH;
+		y = i / SCREENWIDTH;
+		image_data[i * 3 + 0] = palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 2];
+		image_data[i * 3 + 1] = palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 1];
+		image_data[i * 3 + 2] = palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0];
+	}
+#endif
 
 #ifndef OPENGL
 	XPutImage(display, window, context, image, 0, 0, 0, 0, wwidth, wheight);
@@ -365,7 +372,17 @@ void I_FinishUpdate() {
 #else
 	glUseProgram(shader);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, wwidth, wheight, 0, GL_BGRA, GL_UNSIGNED_BYTE, image_data);
+	aspect_scale_x = (float) SCREENWIDTH / (float) SCREENHEIGHT;
+	aspect_scale_x /= (float) wwidth / (float) wheight;
+	aspect_scale_y = 1.0f;
+	if(aspect_scale_x > 1.0f) {
+		aspect_scale_y = (float) SCREENHEIGHT / (float) SCREENWIDTH;
+		aspect_scale_y /= (float) wheight / (float) wwidth;
+		aspect_scale_x = 1.0f;
+	}
+	glUniform2f(glGetUniformLocation(shader, "aspect_scale"), aspect_scale_x, aspect_scale_y);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCREENWIDTH, SCREENHEIGHT, 0, GL_BGR, GL_UNSIGNED_BYTE, image_data);
 
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
