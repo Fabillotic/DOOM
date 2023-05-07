@@ -13,7 +13,7 @@ Modern linux version of DOOM
 - X11
 - OpenAL
 - Fluidsynth
-- duh...
+- OpenGL + GLEW (can be disabled, see below)
 
 ## Additional requirements
 
@@ -42,13 +42,19 @@ I recommend you buy a copy of the original game through Steam.
 ### Default
 
 - You can use WASD to move around and use your mouse to look left/right.
-- The interact button is 'e'.
-- Sprinting is on 'LSHIFT'.
+- The interact key is `E`.
+- Sprinting is on `LSHIFT`.
 - You can shoot with the left mouse button.
 
 ### Original movement
 
 You can go back to the original movement by disabling the `-DFPSMOVE` flag in the `Makefile` and running `make -B` to recompile.
+
+## OpenGL
+
+This project uses OpenGL to accelerate image processing and to display the image.
+
+Alternatively X11 primitives can be used for rendering by commenting out the line "USE_OPENGL=1" in the `Makefile`.
 
 ## License
 
