@@ -381,7 +381,6 @@ void I_StartTic() {
 			wwidth = ev.xconfigure.width;
 			wheight = ev.xconfigure.height;
 			make_image();
-			printf("ConfigureNotify! width: %d, height: %d\n", wwidth, wheight);
 		}
 		else if(ev.type == FocusIn) {
 			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
