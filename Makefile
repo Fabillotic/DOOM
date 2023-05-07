@@ -16,7 +16,7 @@ WADS=wads
 # soundfont for music
 SOUNDFONT="/usr/share/soundfonts/Roland SC-55 v3.7.sf2"
 
-BIN=linuxdoom
+BIN=linuxxdoom
 
 # not too sophisticated dependency
 OBJS=					\
