@@ -95,19 +95,16 @@ endif
 all:	 $(O)/$(BIN)
 
 clean:
-	rm -rf $(O)
+	rm -f $(O)/$(BIN) $(OBJS)
 
 style:
 	clang-format -style=file -i $(SRC)/*.c $(SRC)/*.h
-
-$(O):
-	mkdir -p $(O)
 
 $(O)/$(BIN):	$(OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) \
 	-o $(O)/$(BIN) $(LIBS)
 
-$(O)/%.o: $(SRC)/%.c | $(O)
+$(O)/%.o: $(SRC)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(O)/$(BIN)
