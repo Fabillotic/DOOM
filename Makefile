@@ -1,5 +1,8 @@
 CC=gcc # gcc or g++
 
+# comment out to disable OpenGL
+USE_OPENGL=1
+
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
 LDFLAGS=-L/usr/X11R6/lib
 LIBS=-lX11 -lm -lopenal -lfluidsynth
@@ -82,6 +85,12 @@ OBJS=					\
 		$(O)/info.o		\
 		$(O)/sounds.o		\
 		$(O)/i_main.o
+
+ifdef USE_OPENGL
+	CFLAGS += -DOPENGL
+	LIBS += -lGL -lGLEW
+	OBJS += $(O)/shader.o
+endif
 
 all:	 $(O)/$(BIN)
 

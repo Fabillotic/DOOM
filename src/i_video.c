@@ -24,6 +24,11 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#ifdef OPENGL
+#include <GL/glew.h>
+#include <GL/glxew.h>
+#include "shader.h"
+#endif
 #include "d_main.h"
 #include "doomdef.h"
 #include "doomstat.h"
@@ -37,9 +42,18 @@ Window root;
 Window window;
 XVisualInfo visual;
 Colormap colormap;
-GC context;
 
+#ifndef OPENGL
+GC context;
 XImage *image;
+#else
+GLXContext context;
+int shader;
+int vertexArray;
+int vertexBuffer;
+int texture;
+#endif
+
 unsigned char *image_data;
 unsigned char *palette;
 
@@ -102,13 +116,11 @@ void I_InitGraphics() {
 	screen = DefaultScreen(display);
 	root = RootWindow(display, screen);
 
+#ifndef OPENGL
 	if(!XMatchVisualInfo(display, screen, 24, TrueColor, &visual)) {
 		printf("Only screens with 24-bit TrueColor are supported!\n");
 		return;
 	}
-	printf("Found visual info!\n");
-
-	mouse_grabbed = 0;
 
 	colormap = XCreateColormap(display, root, visual.visual, AllocNone);
 	atts = (XSetWindowAttributes){
@@ -119,6 +131,25 @@ void I_InitGraphics() {
 	    InputOutput, visual.visual,
 	    CWEventMask | CWColormap | CWOverrideRedirect, &atts);
 	context = XCreateGC(display, window, 0, &vals);
+#else
+	Screen *scr = XDefaultScreenOfDisplay(display);
+	XVisualInfo *visual_temp = malloc(sizeof(XVisualInfo));
+	visual_temp->visual = DefaultVisualOfScreen(scr);
+	visual_temp->visualid = XVisualIDFromVisual(visual_temp->visual);
+	visual_temp->screen = screen;
+	visual_temp->depth = DefaultDepthOfScreen(scr);
+
+	XWindowAttributes gwa;
+	XGetWindowAttributes(display, root, &gwa);
+
+	atts = (XSetWindowAttributes){
+	    .event_mask = EVENTMASK,
+	    .override_redirect = False};
+	window = XCreateWindow(display, root, 0, 0, wwidth, wheight, 0, CopyFromParent, InputOutput, CopyFromParent, CWEventMask | CWOverrideRedirect, &atts);
+	XSync(display, False);
+#endif
+
+	mouse_grabbed = 0;
 
 	if(fullscreen) {
 		wm_state = XInternAtom(display, "_NET_WM_STATE", True);
@@ -129,6 +160,70 @@ void I_InitGraphics() {
 	printf("Mapping window...\n");
 	XMapWindow(display, window);
 	XSync(display, False);
+
+#ifdef OPENGL
+	int r;
+	XVisualInfo *visual_info = XGetVisualInfo(display, VisualIDMask | VisualScreenMask | VisualDepthMask, visual_temp, &r);
+	printf("visual_info: %p\nr: %d\n", visual_info, r);
+	free(visual_temp);
+
+	context = glXCreateContext(display, visual_info, NULL, 1);
+	printf("context: %p\n", context);
+	glXMakeCurrent(display, window, context);
+	printf("make current\n");
+
+	glewExperimental=GL_TRUE;
+	int err = glewInit();
+	if(err != GLEW_OK) {
+		printf("%s\n", glewGetErrorString(err));
+		printf("glewInit() failed!\n");
+		return;
+	}
+
+	shader = create_shader(
+		"#version 330 core\n\
+		layout(location = 0) in vec2 pos;\n\
+		layout(location = 1) in vec2 tex;\n\
+		out vec2 uv;\n\
+		void main() {gl_Position = vec4(pos, 0.0, 1.0);uv = tex;}\n\
+		",
+		NULL,
+		"#version 330 core\n\
+		in vec2 uv;\n\
+		out vec3 color;\n\
+		uniform sampler2D tex;\n\
+		void main() {color = texture(tex, uv).rgb;}\n\
+		"
+	);
+
+	printf("shader: %d\n", shader);
+
+	glGenVertexArrays(1, &vertexArray);
+	glBindVertexArray(vertexArray);
+
+	printf("vertexArray: %d\n", vertexArray);
+
+	float data[] = {
+		//-1.0f, -1.0f, 1.0f, -1.0f, 0.0f, 1.0f
+
+		//Positions
+		-1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f,
+		-1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f,
+
+		//UVs
+		0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f
+	};
+
+	glGenBuffers(1, &vertexBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(data), data, GL_STATIC_DRAW);
+
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+#endif
 
 	while(1) {
 		XNextEvent(display, &ev);
@@ -150,22 +245,35 @@ void I_InitGraphics() {
 	    SCREENWIDTH * SCREENHEIGHT); // Color index, 8-bit per pixel
 	palette = malloc(256 * 3);       // 256 entries, each of them 24-bit
 
-	image = NULL;
 	image_data = NULL;
+
+#ifndef OPENGL
+	image = NULL;
+#else
+	glViewport(0, 0, wwidth, wheight);
+#endif
 
 	make_image();
 	printf("Finished initializing!\n");
 }
 
 void make_image() {
+#ifndef OPENGL
 	if(image) {
 		XDestroyImage(image);
 	}
+#else
+	if(image_data) {
+		free(image_data);
+	}
+#endif
 
 	// RGB, 8-bit each, actually 32-bit per pixel, cause X11 weirdness
 	image_data = malloc(wwidth * wheight * 4);
+#ifndef OPENGL
 	image = XCreateImage(display, visual.visual, 24, ZPixmap, 0,
 	    (char *) image_data, wwidth, wheight, 8, 4 * wwidth);
+#endif
 }
 
 void grab_mouse() {
@@ -217,6 +325,11 @@ void I_UpdateNoBlit() {
 void I_FinishUpdate() {
 	int i, j, k, dw, dh, dx, dy, x, y;
 
+#ifdef OPENGL
+	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+#endif
+
 	screencoords(&dx, &dy, &dw, &dh);
 
 	for(i = 0; i < wwidth * wheight; i++) {
@@ -246,8 +359,25 @@ void I_FinishUpdate() {
 		}
 	}
 
+#ifndef OPENGL
 	XPutImage(display, window, context, image, 0, 0, 0, 0, wwidth, wheight);
 	XSync(display, False);
+#else
+	glUseProgram(shader);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, wwidth, wheight, 0, GL_BGRA, GL_UNSIGNED_BYTE, image_data);
+
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*) 0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, sizeof(float) * 12);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
+
+	glXSwapBuffers(display, window);
+#endif
 }
 
 void I_ReadScreen(byte *scr) {
@@ -380,7 +510,11 @@ void I_StartTic() {
 		else if(ev.type == ConfigureNotify) {
 			wwidth = ev.xconfigure.width;
 			wheight = ev.xconfigure.height;
+
 			make_image();
+#ifdef OPENGL
+			glViewport(0, 0, wwidth, wheight);
+#endif
 		}
 		else if(ev.type == FocusIn) {
 			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
