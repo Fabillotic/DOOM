@@ -147,6 +147,8 @@ short itemOn;           // menu item skull is on
 short skullAnimCounter; // skull animation counter
 short whichSkull;       // which skull to draw
 
+boolean mouseInMenu;    // whether the mouse is on an item
+
 // graphic name of skulls
 // warning: initializer-string for array of chars is too long
 char skullName[2][/*8*/ 9] = {"M_SKULL1", "M_SKULL2"};
@@ -999,14 +1001,16 @@ boolean M_Responder(event_t *ev) {
 		}
 	}
 	else if(ev->type == ev_mouse && mousewait < I_GetTime()) {
-		if(ev->data1 & 1) {
-			ch = KEY_ENTER;
-			mousewait = I_GetTime() + 15;
-		}
+		if(mouseInMenu) {
+			if(ev->data1 & 1) {
+				ch = KEY_ENTER;
+				mousewait = I_GetTime() + 15;
+			}
 
-		if(ev->data1 & 2) {
-			ch = KEY_BACKSPACE;
-			mousewait = I_GetTime() + 15;
+			if(ev->data1 & 2) {
+				ch = KEY_BACKSPACE;
+				mousewait = I_GetTime() + 15;
+			}
 		}
 	}
 	else if(ev->type == ev_keydown) {
@@ -1253,16 +1257,21 @@ boolean M_Responder(event_t *ev) {
 }
 
 void M_SelectItemByPosition(int x, int y) {
-	int i;
+	int i, ydiff;
 
 	if(menuactive) {
-		i = (y - currentMenu->y) / LINEHEIGHT;
+		ydiff = y - currentMenu->y;
+		i = ydiff / LINEHEIGHT;
 		if(i >= 0 && i < currentMenu->numitems) {
+			mouseInMenu = true;
 			if(currentMenu->menuitems[i].status != -1) {
 				itemOn = i;
 			}
 		}
-		else itemOn = -1;
+		else {
+			mouseInMenu = false;
+			//itemOn = -1;
+		}
 	}
 }
 
