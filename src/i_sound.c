@@ -65,12 +65,11 @@ float orientation[6];
 
 #define SONG 1
 int music_source;
-int music_buffer;
+music_buffer_t *music_buffers;
 
 void *getsfx(char *sfxname, int *len);
 mus_event_t *parse_data(char *data);
-void *synthesize(mus_event_t *events, fluid_synth_t *synth,
-    fluid_sequencer_t *sequencer, int *r_wsize);
+int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *sequencer);
 unsigned char get_midi_channel(unsigned char channel);
 int parse_wav(void *wav_data, int wav_len, void **r_data, int *r_size,
     short *r_channels, short *r_bps, int *r_freq);
@@ -294,17 +293,27 @@ void I_UnRegisterSong(int handle) {
 }
 
 int I_RegisterSong(void *data) {
-	int wsize;
+	int i, ticks, wsize, buffer_name;
 	mus_event_t *events;
+	music_buffer_t *new_buffer, *buf, *buf2;
 	void *wdata;
 
 	printf("I_RegisterSong!\n");
-	if(music_buffer) {
+	/*
+	if(buffer_name) {
 		alSourcei(music_source, AL_BUFFER, 0);
 		alDeleteBuffers(1, &music_buffer);
 	}
+	*/
 	if(fsequencer) {
 		delete_fluid_sequencer(fsequencer);
+	}
+
+	alSourcei(music_source, AL_BUFFER, 0);
+	for(buf = music_buffers; buf; buf = buf2) {
+		buf2 = buf->next;
+		alDeleteBuffers(1, &(buf->name));
+		free(buf);
 	}
 
 	events = parse_data(data);
@@ -312,12 +321,30 @@ int I_RegisterSong(void *data) {
 	fsequencer = new_fluid_sequencer2(0);
 	fluid_synth_system_reset(fsynth);
 
-	wdata = synthesize(events, fsynth, fsequencer, &wsize);
+	ticks = sequence(events, fsynth, fsequencer);
 
-	alGenBuffers(1, &music_buffer);
-	alBufferData(music_buffer, AL_FORMAT_STEREO16, wdata, wsize, SAMPLERATE);
+	wsize = 2 * 2 * SAMPLES_PER_TICK * 10;
+	wdata = malloc(wsize);
 
-	alSourcei(music_source, AL_BUFFER, music_buffer);
+	for(i = 0; i < ticks + 10; i+= 10) {
+		fluid_synth_write_s16(fsynth, SAMPLES_PER_TICK * 10, wdata, 0, 2, wdata, 1, 2);
+
+		alGenBuffers(1, &buffer_name);
+		alBufferData(buffer_name, AL_FORMAT_STEREO16, wdata, wsize, SAMPLERATE);
+
+		alSourceQueueBuffers(music_source, 1, &buffer_name);
+
+		new_buffer = malloc(sizeof(music_buffer_t));
+		new_buffer->next = NULL;
+		new_buffer->name = buffer_name;
+
+		for(buf = music_buffers; buf && buf->next; buf = buf->next);
+		if(buf) buf->next = new_buffer;
+		else music_buffers = new_buffer;
+	}
+	free(wdata);
+
+	//alSourcei(music_source, AL_BUFFER, music_buffer);
 
 	return SONG;
 }
@@ -517,14 +544,12 @@ mus_event_t *parse_data(char *data) {
 	return events;
 }
 
-void *synthesize(mus_event_t *events, fluid_synth_t *synth,
-    fluid_sequencer_t *sequencer, int *r_wsize) {
-	int i, ticks, samples, wsize;
+int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *sequencer) {
+	int i, ticks;
 	mus_event_t *event;
 	unsigned char volume[16];
 	unsigned char midi_channel;
 	uint16_t pitch;
-	uint16_t *wdata;
 	short synth_dest;
 	fluid_event_t *fluid_ev;
 	fluid_midi_event_t *fluid_midi_ev;
@@ -535,10 +560,6 @@ void *synthesize(mus_event_t *events, fluid_synth_t *synth,
 	ticks = fluid_sequencer_get_tick(sequencer);
 
 	for(i = 0; i < 16; i++) volume[i] = 100;
-
-	i = 0;
-	for(event = events; event; event = event->next) i += event->delay;
-	printf("Total ticks: %d\n", i);
 
 	for(event = events; event; event = event->next) {
 		midi_channel = get_midi_channel(event->channel);
@@ -613,17 +634,7 @@ void *synthesize(mus_event_t *events, fluid_synth_t *synth,
 	}
 	printf("Scheduling done.\n");
 
-	samples = ((SAMPLES_PER_TICK * ticks) / 64) * 64 + 64;
-	wsize = sizeof(uint16_t) * 2 * samples;
-	wdata = malloc(wsize);
-
-	printf(
-	    "samples: %d, intr. ticks: %d\n", samples, samples / SAMPLES_PER_TICK);
-	fluid_synth_write_s16(synth, samples, wdata, 0, 2, wdata, 1, 2);
-	printf("ticks skipped: %d\n", ticks - fluid_sequencer_get_tick(sequencer));
-
-	*r_wsize = wsize;
-	return wdata;
+	return ticks;
 }
 
 unsigned char get_midi_channel(unsigned char channel) {

@@ -25,6 +25,12 @@ struct mus_event {
 	unsigned char data[2];
 };
 
+typedef struct music_buffer music_buffer_t;
+struct music_buffer {
+	music_buffer_t *next;
+	int name;
+};
+
 // Init at program start...
 void I_InitSound();
 
