@@ -315,6 +315,7 @@ int I_RegisterSong(void *data) {
 		alDeleteBuffers(1, &(buf->name));
 		free(buf);
 	}
+	music_buffers = NULL;
 
 	events = parse_data(data);
 
