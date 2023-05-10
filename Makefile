@@ -5,7 +5,7 @@ USE_OPENGL=1
 
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
 LDFLAGS=-L/usr/X11R6/lib
-LIBS=-lX11 -lm -lopenal -lfluidsynth
+LIBS=-lX11 -lm -lopenal -lfluidsynth -lpthread
 
 # subdirectory for objects
 O=linux

@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -66,10 +67,13 @@ float orientation[6];
 #define SONG 1
 int music_source;
 music_buffer_t *music_buffers;
+int music_ticks;
+int song_play;
 
 void *getsfx(char *sfxname, int *len);
 mus_event_t *parse_data(char *data);
 int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *sequencer);
+void* synthesize(void* arg);
 unsigned char get_midi_channel(unsigned char channel);
 int parse_wav(void *wav_data, int wav_len, void **r_data, int *r_size,
     short *r_channels, short *r_bps, int *r_freq);
@@ -267,18 +271,21 @@ void I_PlaySong(int handle, int looping) {
 	if(handle == SONG) {
 		alSourcei(music_source, AL_LOOPING, looping);
 		alSourcePlay(music_source);
+		song_play = 1;
 	}
 }
 
 void I_PauseSong(int handle) {
 	if(handle == SONG) {
 		alSourcePause(music_source);
+		song_play = 0;
 	}
 }
 
 void I_ResumeSong(int handle) {
 	if(handle == SONG) {
 		alSourcePlay(music_source);
+		song_play = 1;
 	}
 }
 
@@ -286,6 +293,7 @@ void I_StopSong(int handle) {
 	printf("StopSong: %d\n", handle);
 	if(handle == SONG) {
 		alSourceStop(music_source);
+		song_play = 0;
 	}
 }
 
@@ -293,10 +301,9 @@ void I_UnRegisterSong(int handle) {
 }
 
 int I_RegisterSong(void *data) {
-	int i, ticks, wsize, buffer_name;
+	pthread_t thread;
 	mus_event_t *events;
-	music_buffer_t *new_buffer, *buf, *buf2;
-	void *wdata;
+	music_buffer_t *buf, *buf2;
 
 	printf("I_RegisterSong!\n");
 	/*
@@ -322,32 +329,44 @@ int I_RegisterSong(void *data) {
 	fsequencer = new_fluid_sequencer2(0);
 	fluid_synth_system_reset(fsynth);
 
-	ticks = sequence(events, fsynth, fsequencer);
+	music_ticks = sequence(events, fsynth, fsequencer);
 
-	wsize = 2 * 2 * SAMPLES_PER_TICK * 10;
-	wdata = malloc(wsize);
+	song_play = 0;
 
-	for(i = 0; i < ticks + 10; i+= 10) {
-		fluid_synth_write_s16(fsynth, SAMPLES_PER_TICK * 10, wdata, 0, 2, wdata, 1, 2);
-
-		alGenBuffers(1, &buffer_name);
-		alBufferData(buffer_name, AL_FORMAT_STEREO16, wdata, wsize, SAMPLERATE);
-
-		alSourceQueueBuffers(music_source, 1, &buffer_name);
-
-		new_buffer = malloc(sizeof(music_buffer_t));
-		new_buffer->next = NULL;
-		new_buffer->name = buffer_name;
-
-		for(buf = music_buffers; buf && buf->next; buf = buf->next);
-		if(buf) buf->next = new_buffer;
-		else music_buffers = new_buffer;
-	}
-	free(wdata);
-
-	//alSourcei(music_source, AL_BUFFER, music_buffer);
+	pthread_create(&thread, NULL, synthesize, NULL);
 
 	return SONG;
+}
+
+void* synthesize(void* arg) {
+	int buffer_name, wsize;
+	void *wdata;
+	music_buffer_t *new_buffer, *buf;
+
+	wsize = 2 * 2 * SAMPLES_PER_TICK * music_ticks;
+	wdata = malloc(wsize);
+
+	fluid_synth_write_s16(fsynth, SAMPLES_PER_TICK * music_ticks, wdata, 0, 2, wdata, 1, 2);
+
+	alGenBuffers(1, &buffer_name);
+	alBufferData(buffer_name, AL_FORMAT_STEREO16, wdata, wsize, SAMPLERATE);
+
+	alSourceQueueBuffers(music_source, 1, &buffer_name);
+
+	new_buffer = malloc(sizeof(music_buffer_t));
+	new_buffer->next = NULL;
+	new_buffer->name = buffer_name;
+
+	for(buf = music_buffers; buf && buf->next; buf = buf->next);
+	if(buf) buf->next = new_buffer;
+	else music_buffers = new_buffer;
+
+	free(wdata);
+
+	//If the main thread already attempted to play the song
+	if(song_play) alSourcePlay(music_source);
+
+	return NULL;
 }
 
 int I_QrySongPlaying(int handle) {
