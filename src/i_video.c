@@ -199,6 +199,7 @@ void I_InitGraphics() {
 
 	printf("shader: %d\n", shader);
 
+#ifndef GL2
 	glGenVertexArrays(1, &vertexArray);
 	glBindVertexArray(vertexArray);
 
@@ -219,6 +220,7 @@ void I_InitGraphics() {
 	glGenBuffers(1, &vertexBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(data), data, GL_STATIC_DRAW);
+#endif
 
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
@@ -370,8 +372,6 @@ void I_FinishUpdate() {
 	XPutImage(display, window, context, image, 0, 0, 0, 0, wwidth, wheight);
 	XSync(display, False);
 #else
-	glUseProgram(shader);
-
 	aspect_scale_x = (float) SCREENWIDTH / (float) SCREENHEIGHT;
 	aspect_scale_x /= (float) wwidth / (float) wheight;
 	aspect_scale_y = 1.0f;
@@ -380,10 +380,17 @@ void I_FinishUpdate() {
 		aspect_scale_y /= (float) wheight / (float) wwidth;
 		aspect_scale_x = 1.0f;
 	}
+
+#ifndef GL2
+	glUseProgram(shader);
 	glUniform2f(glGetUniformLocation(shader, "aspect_scale"), aspect_scale_x, aspect_scale_y);
+#else
+	glEnable(GL_TEXTURE_2D);
+#endif
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCREENWIDTH, SCREENHEIGHT, 0, GL_BGR, GL_UNSIGNED_BYTE, image_data);
 
+#ifndef GL2
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
@@ -392,6 +399,29 @@ void I_FinishUpdate() {
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glDisableVertexAttribArray(0);
 	glDisableVertexAttribArray(1);
+#else
+	glBegin(GL_TRIANGLES);
+	glTexCoord2f(0.0f, 1.0f);
+	glVertex2f(-1.0f * aspect_scale_x, -1.0f * aspect_scale_y);
+
+	glTexCoord2f(1.0f, 0.0f);
+	glVertex2f(1.0f * aspect_scale_x, 1.0f * aspect_scale_y);
+
+	glTexCoord2f(0.0f, 0.0f);
+	glVertex2f(-1.0f * aspect_scale_x, 1.0f * aspect_scale_y);
+
+	glTexCoord2f(0.0f, 1.0f);
+	glVertex2f(-1.0f * aspect_scale_x, -1.0f * aspect_scale_y);
+
+	glTexCoord2f(1.0f, 1.0f);
+	glVertex2f(1.0f * aspect_scale_x, -1.0f * aspect_scale_y);
+
+	glTexCoord2f(1.0f, 0.0f);
+	glVertex2f(1.0f * aspect_scale_x, 1.0f * aspect_scale_y);
+	glEnd();
+
+	glDisable(GL_TEXTURE_2D);
+#endif
 
 	glXSwapBuffers(display, window);
 #endif

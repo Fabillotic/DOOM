@@ -3,6 +3,9 @@ CC=gcc # gcc or g++
 # comment out to disable OpenGL
 USE_OPENGL=1
 
+# uncomment to use OpenGL 2 instead
+# GL2=1
+
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
 LDFLAGS=-L/usr/X11R6/lib
 LIBS=-lX11 -lm -lopenal -lfluidsynth -lpthread
@@ -90,6 +93,9 @@ ifdef USE_OPENGL
 	CFLAGS += -DOPENGL
 	LIBS += -lGL -lGLEW
 	OBJS += $(O)/shader.o
+ifdef GL2
+	CFLAGS += -DGL2
+endif
 endif
 
 all:	 $(O)/$(BIN)
