@@ -110,4 +110,7 @@ $(O)/%.o: $(SRC)/%.c
 run: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3
 
+debug: $(O)/$(BIN)
+	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) gdb ./$(O)/$(BIN)
+
 .PHONY: all clean run style
