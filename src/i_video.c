@@ -475,6 +475,7 @@ void I_StartTic() {
 		else if(ev.type == ButtonPress) {
 			d_event.type = ev_mouse;
 
+			d_event.data1 = 0;
 			if(ev.xbutton.state & Button1Mask) d_event.data1 |= 1;
 			if(ev.xbutton.state & Button2Mask) d_event.data1 |= 2;
 			if(ev.xbutton.state & Button3Mask) d_event.data1 |= 4;
