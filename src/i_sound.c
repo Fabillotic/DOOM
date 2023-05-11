@@ -49,6 +49,7 @@
 #define SAMPLES_PER_TICK 315
 #define SAMPLECOUNT 512
 #define NUM_SOUNDS 8
+#define MUSIC_TICKS_PER_ITERATION 100
 
 #define PI 3.141592653589
 
@@ -339,32 +340,37 @@ int I_RegisterSong(void *data) {
 }
 
 void* synthesize(void* arg) {
-	int buffer_name, wsize;
+	int i, buffer_name, wsize;
 	void *wdata;
 	music_buffer_t *new_buffer, *buf;
 
-	wsize = 2 * 2 * SAMPLES_PER_TICK * music_ticks;
-	wdata = malloc(wsize);
+	for(i = 0; i < music_ticks / MUSIC_TICKS_PER_ITERATION + 1; i++) {
+		wsize = 2 * 2 * SAMPLES_PER_TICK * MUSIC_TICKS_PER_ITERATION;
+		wdata = malloc(wsize);
 
-	fluid_synth_write_s16(fsynth, SAMPLES_PER_TICK * music_ticks, wdata, 0, 2, wdata, 1, 2);
+		fluid_synth_write_s16(fsynth, SAMPLES_PER_TICK * MUSIC_TICKS_PER_ITERATION, wdata, 0, 2, wdata, 1, 2);
 
-	alGenBuffers(1, &buffer_name);
-	alBufferData(buffer_name, AL_FORMAT_STEREO16, wdata, wsize, SAMPLERATE);
+		alGenBuffers(1, &buffer_name);
+		alBufferData(buffer_name, AL_FORMAT_STEREO16, wdata, wsize, SAMPLERATE);
 
-	alSourceQueueBuffers(music_source, 1, &buffer_name);
+		alSourceQueueBuffers(music_source, 1, &buffer_name);
 
-	new_buffer = malloc(sizeof(music_buffer_t));
-	new_buffer->next = NULL;
-	new_buffer->name = buffer_name;
+		new_buffer = malloc(sizeof(music_buffer_t));
+		new_buffer->next = NULL;
+		new_buffer->name = buffer_name;
 
-	for(buf = music_buffers; buf && buf->next; buf = buf->next);
-	if(buf) buf->next = new_buffer;
-	else music_buffers = new_buffer;
+		for(buf = music_buffers; buf && buf->next; buf = buf->next);
+		if(buf) buf->next = new_buffer;
+		else music_buffers = new_buffer;
 
-	free(wdata);
+		free(wdata);
 
-	//If the main thread already attempted to play the song
-	if(song_play) alSourcePlay(music_source);
+		if(i == 0) {
+			//If the main thread already attempted to play the song
+			if(song_play) alSourcePlay(music_source);
+		}
+	}
+	printf("Done synthesizing!\n");
 
 	return NULL;
 }
