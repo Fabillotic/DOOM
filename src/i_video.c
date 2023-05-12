@@ -188,6 +188,7 @@ void I_InitGraphics() {
 		return;
 	}
 
+#ifndef GL2
 	shader = create_shader(
 		"#version 330 core\n\
 		layout(location = 0) in vec2 pos;\n\
@@ -207,7 +208,6 @@ void I_InitGraphics() {
 
 	printf("shader: %d\n", shader);
 
-#ifndef GL2
 	glGenVertexArrays(1, &vertexArray);
 	glBindVertexArray(vertexArray);
 
