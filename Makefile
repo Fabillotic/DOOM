@@ -3,7 +3,7 @@ CC=gcc # gcc or g++
 # comment out to disable OpenGL
 USE_OPENGL=1
 
-# uncomment to use OpenGL 2 instead
+# uncomment to switch to OpenGL2 instead of the default version 3.3
 # GL2=1
 
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
