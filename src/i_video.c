@@ -157,6 +157,14 @@ void I_InitGraphics() {
 		XChangeProperty(display, window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*) &wm_fullscreen, 1);
 	}
 
+	XClassHint *class_hint;
+	class_hint = XAllocClassHint();
+	class_hint->res_name = "DOOM";
+	class_hint->res_class = "doom";
+	XSetClassHint(display, window, class_hint);
+
+	XStoreName(display, window, "DOOM");
+
 	printf("Mapping window...\n");
 	XMapWindow(display, window);
 	XSync(display, False);
