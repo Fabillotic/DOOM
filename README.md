@@ -54,7 +54,9 @@ You can go back to the original movement by disabling the `-DFPSMOVE` flag in th
 
 This project uses OpenGL to accelerate image processing and to display the image.
 
-Alternatively X11 primitives can be used for rendering by commenting out the line "USE_OPENGL=1" in the `Makefile`.
+An older version of OpenGL using immediate mode can be enabled by uncommenting the `GL2=1` line in the `Makefile`.
+
+Alternatively X11 primitives can be used for rendering by commenting out the line "USE_OPENGL=1".
 
 ## License
 
