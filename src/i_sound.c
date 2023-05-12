@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -49,7 +50,7 @@
 #define SAMPLES_PER_TICK 315
 #define SAMPLECOUNT 512
 #define NUM_SOUNDS 8
-#define MUSIC_TICKS_PER_ITERATION 100
+#define MUSIC_TICKS_PER_ITERATION 20
 
 #define PI 3.141592653589
 
@@ -70,6 +71,9 @@ int music_source;
 music_buffer_t *music_buffers;
 int music_ticks;
 int song_play;
+
+pthread_t synth_thread;
+volatile sig_atomic_t synth_stop;
 
 void *getsfx(char *sfxname, int *len);
 mus_event_t *parse_data(char *data);
@@ -150,6 +154,8 @@ void I_InitMusic() {
 	fluid_synth_sfload(fsynth, soundfont, 1);
 
 	alGenSources(1, &music_source);
+
+	synth_thread = NULL;
 }
 
 void I_SetChannels() {
@@ -302,17 +308,19 @@ void I_UnRegisterSong(int handle) {
 }
 
 int I_RegisterSong(void *data) {
-	pthread_t thread;
 	mus_event_t *events;
 	music_buffer_t *buf, *buf2;
 
 	printf("I_RegisterSong!\n");
-	/*
-	if(buffer_name) {
-		alSourcei(music_source, AL_BUFFER, 0);
-		alDeleteBuffers(1, &music_buffer);
+
+	if(synth_thread) {
+		synth_stop = 1;
+		printf("Waiting for synthesizing thread to stop...\n");
+		pthread_join(synth_thread, NULL);
+		printf("Synthesizing thread stopped!\n");
+		synth_thread = NULL;
 	}
-	*/
+
 	if(fsequencer) {
 		delete_fluid_sequencer(fsequencer);
 	}
@@ -334,7 +342,8 @@ int I_RegisterSong(void *data) {
 
 	song_play = 0;
 
-	pthread_create(&thread, NULL, synthesize, NULL);
+	synth_stop = 0;
+	pthread_create(&synth_thread, NULL, synthesize, NULL);
 
 	return SONG;
 }
@@ -345,6 +354,12 @@ void* synthesize(void* arg) {
 	music_buffer_t *new_buffer, *buf;
 
 	for(i = 0; i < music_ticks / MUSIC_TICKS_PER_ITERATION + 1; i++) {
+		if(synth_stop) {
+			return NULL;
+		}
+
+		//printf("Synthesizing chunk %d / %d...\n", i, music_ticks / MUSIC_TICKS_PER_ITERATION + 1);
+
 		wsize = 2 * 2 * SAMPLES_PER_TICK * MUSIC_TICKS_PER_ITERATION;
 		wdata = malloc(wsize);
 
