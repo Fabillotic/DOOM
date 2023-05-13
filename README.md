@@ -6,18 +6,20 @@ Modern linux version of DOOM
 
 - X11 code rewrite
 - OpenAL sounds
-- Fluidsynth MIDI music
+- Fluidsynth / ALSA MIDI music
 
 ## Dependencies
 
 - X11
 - OpenAL
-- Fluidsynth
-- OpenGL + GLEW (can be disabled, see below)
+- FluidSynth or ALSA for music
+- OpenGL + GLEW (not strictly necessary, see below)
 
 ## Additional requirements
 
-### Appropriate soundfont
+### FluidSynth: Appropriate soundfont
+
+If you want to use FluidSynth, you will also need a soundfont.
 
 Recommended: [https://archive.org/download/SC55EmperorGrieferus/Roland%20SC-55%20v3.7.sf2](https://archive.org/download/SC55EmperorGrieferus/Roland%20SC-55%20v3.7.sf2)
 
@@ -30,12 +32,38 @@ I recommend you buy a copy of the original game through Steam.
 
 ## Instructions
 
+### Part 1: Basics
+
 1. Clone the code
-2. Edit the `SOUNDFONT=` line in the `Makefile` to point to the soundfont you wish to use
-3. Compile with `make`
-4. Put the WADfile in the `wads` folder
-5. Run `make run`
-6. Have fun!
+2. Decide whether you want to use built-in FluidSynth (recommended) or ALSA SEQ for MIDI playback
+
+
+### Part 2: Setting up the music
+
+#### - FluidSynth (default):
+
+1. Edit the `SOUNDFONT=` line in the `Makefile` to point to the soundfont you wish to use
+2. Make sure the line `USE_FLUIDSYNTH=1` is not commented out (so make sure that it does not have a hashtag in front of it)
+3. Make sure that the line `USE_ALSA_SEQ=1` is commented out (make sure it does have a hashtag at the front)
+
+#### - ALSA_SEQ:
+
+1. Edit the `MIDI_PORT=` line in the `Makefile` to the MIDI port that your MIDI synthesizer uses (You can find the connected MIDI device ports by running `aplaymidi -l`)
+2. Make sure the line `USE_FLUIDSYNTH=1` is commented out (so make sure that it does have a hashtag in front of it)
+3. Make sure the line `USE_ALSA_SEQ=1` is not commented out (make sure it does not have a hashtag at the front)
+
+#### - Compiling without music
+
+1. Reconsider (because the DOOM soundtrack is incredible)
+2. Make sure that both `USE_FLUIDSYNTH=1` and `USE_ALSA_SEQ=1` are commented out and so have hashtags at the front of the line
+
+
+### Part 3: Compiling and running
+
+1. Compile with `make` (you might need to run `make -B` if you've changed the `Makefile`)
+2. Put the WADfile in the `wads` folder
+3. Run `make run`
+4. Have fun!
 
 ## Movement
 
@@ -52,11 +80,13 @@ You can go back to the original movement by disabling the `-DFPSMOVE` flag in th
 
 ## OpenGL
 
-This project uses OpenGL to accelerate image processing and to display the image.
+This project uses OpenGL to accelerate image processing and to display the image. (no actual graphics rewrite)
 
 An older version of OpenGL using immediate mode can be enabled by uncommenting the `GL2=1` line in the `Makefile`.
 
 Alternatively X11 primitives can be used for rendering by commenting out the line `USE_OPENGL=1`.
+
+Again, you'll need to run `make -B` to recompile.
 
 ## License
 
