@@ -91,6 +91,7 @@ int music_source;
 music_buffer_t *music_buffers;
 int music_ticks;
 int song_play;
+int music_loop;
 
 pthread_t music_thread;
 volatile sig_atomic_t music_stop;
@@ -355,6 +356,7 @@ void I_ShutdownMusic() {
 void I_PlaySong(int handle, int looping) {
 	printf("PlaySong: %d, looping: %d\n", handle, looping);
 	if(handle == SONG) {
+		music_loop = looping;
 		alSourcei(music_source, AL_LOOPING, looping);
 		alSourcePlay(music_source);
 		song_play = 1;
@@ -694,6 +696,7 @@ void* play_midi(void* args) {
 
 	for(i = 0; i < 16; i++) volume[i] = 100;
 
+midi_repeat:
 	for(event = events; event; event = event->next) {
 		if(music_stop) {
 			return NULL;
@@ -764,6 +767,8 @@ void* play_midi(void* args) {
 		usleep(1000000 / 140 * event->delay);
 		ticks += event->delay;
 	}
+	if(music_loop) goto midi_repeat;
+
 	printf("Music done.\n");
 
 	return NULL;
