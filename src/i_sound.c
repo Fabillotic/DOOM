@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <pthread.h>
 #include <signal.h>
 
@@ -101,6 +102,7 @@ unsigned char get_midi_channel(unsigned char channel);
 #ifdef ALSA_SEQ
 void* play_midi(void* args);
 void send_alsa_seq_reset();
+int parse_midi_port(char *str, int *r_client, int *r_port);
 #endif
 
 #ifdef FLUIDSYNTH
@@ -151,9 +153,12 @@ void I_InitSound() {
 }
 
 void I_InitMusic() {
-#ifdef FLUIDSYNTH
 	int p;
+#ifdef FLUIDSYNTH
 	fluid_settings_t *settings;
+#endif
+#ifdef ALSA_SEQ
+	int client, port;
 #endif
 
 #ifdef FLUIDSYNTH
@@ -183,10 +188,27 @@ void I_InitMusic() {
 #endif
 
 #ifdef ALSA_SEQ
+	client = -1;
+	if((p = M_CheckParm("-port"))) {
+		if(p < myargc - 1) {
+			if(parse_midi_port(myargv[p + 1], &client, &port) < 0) {
+				printf("Invalid MIDI port!\n");
+				I_Quit();
+			}
+		}
+	}
+
+	if(client < 0) {
+		printf("MIDI port required!\n");
+		I_Quit();
+	}
+
+	printf("Using MIDI port %d:%d!\n", client, port);
+
 	snd_seq_open(&seq, "default", SND_SEQ_OPEN_OUTPUT, 0);
 	snd_seq_set_client_name(seq, "DOOM");
 	midi_port = snd_seq_create_simple_port(seq, "output", SND_SEQ_PORT_CAP_READ, SND_SEQ_PORT_TYPE_MIDI_GENERIC);
-	snd_seq_connect_to(seq, midi_port, 128, 0);
+	snd_seq_connect_to(seq, midi_port, client, port);
 #endif
 
 	alGenSources(1, &music_source);
@@ -323,8 +345,10 @@ void I_ShutdownMusic() {
 #endif
 
 #ifdef ALSA_SEQ
-	send_alsa_seq_reset();
-	if(seq) snd_seq_close(seq);
+	if(seq) {
+		send_alsa_seq_reset();
+		snd_seq_close(seq);
+	}
 #endif
 }
 
@@ -748,6 +772,7 @@ void* play_midi(void* args) {
 
 #ifdef ALSA_SEQ
 void send_alsa_seq_reset() {
+	int i;
 	snd_seq_event_t ev;
 
 	snd_seq_ev_clear(&ev);
@@ -756,10 +781,63 @@ void send_alsa_seq_reset() {
 	snd_seq_ev_set_direct(&ev);
 
 	snd_seq_ev_set_fixed(&ev);
+
+	// Mute all channels if MIDI device can't reset
+	for(i = 0; i < 16; i++) {
+		ev.type = SND_SEQ_EVENT_CONTROLLER;
+		ev.data.control.channel = get_midi_channel(i);
+		ev.data.control.param = 120;
+		ev.data.control.value = 0;
+
+		snd_seq_event_output(seq, &ev);
+		snd_seq_drain_output(seq);
+	}
+
 	ev.type = SND_SEQ_EVENT_RESET;
 
 	snd_seq_event_output(seq, &ev);
 	snd_seq_drain_output(seq);
+}
+#endif
+
+#ifdef ALSA_SEQ
+int parse_midi_port(char *str, int *r_client, int *r_port) {
+	int i, colon, of, client, port;
+	char buffer[4];
+
+	colon = 0;
+	of = 0;
+	for(i = 0; str[i]; i++) {
+		if(str[i] == ':') {
+			colon++;
+			if(colon > 1) return -1;
+
+			if(i < 4) buffer[i] = '\0';
+			else return -1;
+
+			client = atoi(buffer);
+			if(client <= 0) return -1;
+			*r_client = client;
+
+			of = i + 1;
+		}
+		else if(isdigit((unsigned char) str[i])) {
+			if(i - of >= 3) return -1;
+
+			buffer[i - of] = str[i];
+		}
+		else return -1;
+	}
+
+	if(i - of >= 4) return -1;
+
+	buffer[i - of] = '\0';
+
+	port = atoi(buffer);
+	if(port < 0) return -1;
+	*r_port = port;
+
+	return 0;
 }
 #endif
 

@@ -12,6 +12,8 @@ USE_FLUIDSYNTH=1
 # uncomment to enable ALSA midi playback
 # USE_ALSA_SEQ=1
 
+MIDI_PORT=128:0
+
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
 LDFLAGS=-L/usr/X11R6/lib
 LIBS=-lX11 -lm -lopenal -lpthread
@@ -130,7 +132,7 @@ $(O)/%.o: $(SRC)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(O)/$(BIN)
-	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3
+	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3 -port $(MIDI_PORT)
 
 debug: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) gdb ./$(O)/$(BIN)
