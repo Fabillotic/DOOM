@@ -9,6 +9,9 @@ USE_OPENGL=1
 # comment out to disable FluidSynth
 USE_FLUIDSYNTH=1
 
+# uncomment to enable ALSA midi playback
+# USE_ALSA_SEQ=1
+
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
 LDFLAGS=-L/usr/X11R6/lib
 LIBS=-lX11 -lm -lopenal -lpthread
@@ -104,6 +107,11 @@ endif
 ifdef USE_FLUIDSYNTH
 	CFLAGS += -DFLUIDSYNTH
 	LIBS += -lfluidsynth
+endif
+
+ifdef USE_ALSA_SEQ
+	CFLAGS += -DALSA_SEQ
+	LIBS += -lasound
 endif
 
 all:	 $(O)/$(BIN)

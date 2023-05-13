@@ -28,8 +28,16 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 
+#if defined (FLUIDSYNTH) && defined (ALSA_SEQ)
+#error "FLUIDSYNTH and ALSA_SEQ cannot both be defined!"
+#endif
+
 #ifdef FLUIDSYNTH
 #include <fluidsynth.h>
+#endif
+
+#ifdef ALSA_SEQ
+#include <alsa/asoundlib.h>
 #endif
 
 #include "i_sound.h"
@@ -66,6 +74,11 @@ fluid_synth_t *fsynth;
 fluid_sequencer_t *fsequencer;
 #endif
 
+#ifdef ALSA_SEQ
+snd_seq_t *seq;
+int midi_port;
+#endif
+
 int sounds[NUM_SOUNDS];
 int sounds_start[NUM_SOUNDS];
 int sources[NUM_SOUNDS];
@@ -84,6 +97,11 @@ volatile sig_atomic_t music_stop;
 void *getsfx(char *sfxname, int *len);
 mus_event_t *parse_data(char *data);
 unsigned char get_midi_channel(unsigned char channel);
+
+#ifdef ALSA_SEQ
+void* play_midi(void* args);
+void send_alsa_seq_reset();
+#endif
 
 #ifdef FLUIDSYNTH
 int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *sequencer);
@@ -162,6 +180,13 @@ void I_InitMusic() {
 	fsynth = new_fluid_synth(settings);
 
 	fluid_synth_sfload(fsynth, soundfont, 1);
+#endif
+
+#ifdef ALSA_SEQ
+	snd_seq_open(&seq, "default", SND_SEQ_OPEN_OUTPUT, 0);
+	snd_seq_set_client_name(seq, "DOOM");
+	midi_port = snd_seq_create_simple_port(seq, "output", SND_SEQ_PORT_CAP_READ, SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+	snd_seq_connect_to(seq, midi_port, 128, 0);
 #endif
 
 	alGenSources(1, &music_source);
@@ -282,6 +307,25 @@ void I_ShutdownSound() {
 }
 
 void I_ShutdownMusic() {
+	printf("I_ShutdownMusic!\n");
+
+	if(music_thread) {
+		music_stop = 1;
+		printf("Waiting for music thread to stop...\n");
+		pthread_join(music_thread, NULL);
+		printf("Music thread stopped!\n");
+		music_thread = NULL;
+	}
+
+#ifdef FLUIDSYNTH
+	if(fsequencer) delete_fluid_sequencer(fsequencer);
+	if(fsynth) delete_fluid_synth(fsynth);
+#endif
+
+#ifdef ALSA_SEQ
+	send_alsa_seq_reset();
+	if(seq) snd_seq_close(seq);
+#endif
 }
 
 void I_PlaySong(int handle, int looping) {
@@ -360,6 +404,11 @@ int I_RegisterSong(void *data) {
 
 #ifdef FLUIDSYNTH
 	pthread_create(&music_thread, NULL, synthesize, NULL);
+#endif
+
+#ifdef ALSA_SEQ
+	send_alsa_seq_reset();
+	pthread_create(&music_thread, NULL, play_midi, events);
 #endif
 
 	return SONG;
@@ -603,6 +652,116 @@ mus_event_t *parse_data(char *data) {
 
 	return events;
 }
+
+#ifdef ALSA_SEQ
+void* play_midi(void* args) {
+	int i, ticks;
+	mus_event_t *events, *event;
+	snd_seq_event_t ev;
+	unsigned char volume[16];
+	unsigned char midi_channel;
+
+	events = (mus_event_t*) args;
+
+	snd_seq_ev_clear(&ev);
+	snd_seq_ev_set_source(&ev, midi_port);
+	snd_seq_ev_set_subs(&ev);
+	snd_seq_ev_set_direct(&ev);
+
+	for(i = 0; i < 16; i++) volume[i] = 100;
+
+	for(event = events; event; event = event->next) {
+		if(music_stop) {
+			return NULL;
+		}
+		midi_channel = get_midi_channel(event->channel);
+
+		if(event->type == MUS_PRESS) {
+			//printf("MUS_PRESS: channel(%d), note(%d)\n", event->channel, event->data[0]);
+			if(event->dlength > 1) volume[event->channel] = event->data[1];
+
+			snd_seq_ev_set_fixed(&ev);
+			ev.type = SND_SEQ_EVENT_NOTEON;
+			ev.data.note.channel = midi_channel;
+			ev.data.note.note = event->data[0];
+			ev.data.note.velocity = volume[event->channel];
+
+			snd_seq_event_output(seq, &ev);
+			snd_seq_drain_output(seq);
+		}
+		else if(event->type == MUS_RELEASE) {
+			//printf("MUS_RELEASE: channel(%d), note(%d)\n", event->channel, event->data[0]);
+
+			snd_seq_ev_set_fixed(&ev);
+			ev.type = SND_SEQ_EVENT_NOTEOFF;
+			ev.data.note.channel = midi_channel;
+			ev.data.note.note = event->data[0];
+			ev.data.note.velocity = volume[event->channel];
+
+			snd_seq_event_output(seq, &ev);
+			snd_seq_drain_output(seq);
+		}
+		else if(event->type == MUS_PITCH) {
+			//printf("MUS_PITCH: channel(%d), bend(%d)\n", event->channel, event->data[0]);
+
+			snd_seq_ev_set_fixed(&ev);
+			ev.type = SND_SEQ_EVENT_PITCHBEND;
+			ev.data.control.channel = midi_channel;
+			ev.data.control.value = event->data[0];
+
+			snd_seq_event_output(seq, &ev);
+			snd_seq_drain_output(seq);
+		}
+		else if(event->type == MUS_CONTROL) {
+			//printf("MUS_CONTROL: channel(%d), ctrl(%d), value(%d)\n", event->channel, event->data[0], event->data[1]);
+			if(event->data[0] == 0) {
+				snd_seq_ev_set_fixed(&ev);
+				ev.type = SND_SEQ_EVENT_PGMCHANGE;
+				ev.data.control.channel = midi_channel;
+				ev.data.control.value = event->data[1];
+
+				snd_seq_event_output(seq, &ev);
+				snd_seq_drain_output(seq);
+			}
+			else if(event->data[0] == 1) {
+				//TODO: Implement bank select
+			}
+			else if(event->data[0] == 4) {
+				snd_seq_ev_set_fixed(&ev);
+				ev.type = SND_SEQ_EVENT_CONTROLLER;
+				ev.data.control.channel = midi_channel;
+				ev.data.control.param = 10;
+				ev.data.control.value = event->data[1];
+
+				snd_seq_event_output(seq, &ev);
+				snd_seq_drain_output(seq);
+			}
+		}
+		usleep(1000000 / 140 * event->delay);
+		ticks += event->delay;
+	}
+	printf("Music done.\n");
+
+	return NULL;
+}
+#endif
+
+#ifdef ALSA_SEQ
+void send_alsa_seq_reset() {
+	snd_seq_event_t ev;
+
+	snd_seq_ev_clear(&ev);
+	snd_seq_ev_set_source(&ev, midi_port);
+	snd_seq_ev_set_subs(&ev);
+	snd_seq_ev_set_direct(&ev);
+
+	snd_seq_ev_set_fixed(&ev);
+	ev.type = SND_SEQ_EVENT_RESET;
+
+	snd_seq_event_output(seq, &ev);
+	snd_seq_drain_output(seq);
+}
+#endif
 
 #ifdef FLUIDSYNTH
 int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *sequencer) {
