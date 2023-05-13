@@ -28,7 +28,9 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 
+#ifdef FLUIDSYNTH
 #include <fluidsynth.h>
+#endif
 
 #include "i_sound.h"
 #include "i_system.h"
@@ -58,8 +60,12 @@ char *soundfont = NULL;
 
 ALCdevice *device;
 ALCcontext *acontext;
+
+#ifdef FLUIDSYNTH
 fluid_synth_t *fsynth;
 fluid_sequencer_t *fsequencer;
+#endif
+
 int sounds[NUM_SOUNDS];
 int sounds_start[NUM_SOUNDS];
 int sources[NUM_SOUNDS];
@@ -72,16 +78,17 @@ music_buffer_t *music_buffers;
 int music_ticks;
 int song_play;
 
-pthread_t synth_thread;
-volatile sig_atomic_t synth_stop;
+pthread_t music_thread;
+volatile sig_atomic_t music_stop;
 
 void *getsfx(char *sfxname, int *len);
 mus_event_t *parse_data(char *data);
+unsigned char get_midi_channel(unsigned char channel);
+
+#ifdef FLUIDSYNTH
 int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *sequencer);
 void* synthesize(void* arg);
-unsigned char get_midi_channel(unsigned char channel);
-int parse_wav(void *wav_data, int wav_len, void **r_data, int *r_size,
-    short *r_channels, short *r_bps, int *r_freq);
+#endif
 
 void I_InitSound() {
 	int i;
@@ -126,9 +133,12 @@ void I_InitSound() {
 }
 
 void I_InitMusic() {
+#ifdef FLUIDSYNTH
 	int p;
 	fluid_settings_t *settings;
+#endif
 
+#ifdef FLUIDSYNTH
 	soundfont = getenv("SOUNDFONT");
 	if(!soundfont) {
 		if((p = M_CheckParm("-soundfont"))) {
@@ -152,10 +162,11 @@ void I_InitMusic() {
 	fsynth = new_fluid_synth(settings);
 
 	fluid_synth_sfload(fsynth, soundfont, 1);
+#endif
 
 	alGenSources(1, &music_source);
 
-	synth_thread = NULL;
+	music_thread = NULL;
 }
 
 void I_SetChannels() {
@@ -313,17 +324,19 @@ int I_RegisterSong(void *data) {
 
 	printf("I_RegisterSong!\n");
 
-	if(synth_thread) {
-		synth_stop = 1;
-		printf("Waiting for synthesizing thread to stop...\n");
-		pthread_join(synth_thread, NULL);
-		printf("Synthesizing thread stopped!\n");
-		synth_thread = NULL;
+	if(music_thread) {
+		music_stop = 1;
+		printf("Waiting for music thread to stop...\n");
+		pthread_join(music_thread, NULL);
+		printf("Music thread stopped!\n");
+		music_thread = NULL;
 	}
 
+#ifdef FLUIDSYNTH
 	if(fsequencer) {
 		delete_fluid_sequencer(fsequencer);
 	}
+#endif
 
 	alSourcei(music_source, AL_BUFFER, 0);
 	for(buf = music_buffers; buf; buf = buf2) {
@@ -335,26 +348,31 @@ int I_RegisterSong(void *data) {
 
 	events = parse_data(data);
 
+#ifdef FLUIDSYNTH
 	fsequencer = new_fluid_sequencer2(0);
 	fluid_synth_system_reset(fsynth);
 
 	music_ticks = sequence(events, fsynth, fsequencer);
+#endif
 
 	song_play = 0;
+	music_stop = 0;
 
-	synth_stop = 0;
-	pthread_create(&synth_thread, NULL, synthesize, NULL);
+#ifdef FLUIDSYNTH
+	pthread_create(&music_thread, NULL, synthesize, NULL);
+#endif
 
 	return SONG;
 }
 
+#ifdef FLUIDSYNTH
 void* synthesize(void* arg) {
 	int i, buffer_name, wsize;
 	void *wdata;
 	music_buffer_t *new_buffer, *buf;
 
 	for(i = 0; i < music_ticks / MUSIC_TICKS_PER_ITERATION + 1; i++) {
-		if(synth_stop) {
+		if(music_stop) {
 			return NULL;
 		}
 
@@ -389,6 +407,7 @@ void* synthesize(void* arg) {
 
 	return NULL;
 }
+#endif
 
 int I_QrySongPlaying(int handle) {
 	printf("I_QrySongPlaying!\n");
@@ -585,6 +604,7 @@ mus_event_t *parse_data(char *data) {
 	return events;
 }
 
+#ifdef FLUIDSYNTH
 int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *sequencer) {
 	int i, ticks;
 	mus_event_t *event;
@@ -677,58 +697,9 @@ int sequence(mus_event_t *events, fluid_synth_t *synth, fluid_sequencer_t *seque
 
 	return ticks;
 }
+#endif
 
 unsigned char get_midi_channel(unsigned char channel) {
 	if(channel == 15) return 9;
 	return channel;
-}
-
-int parse_wav(void *wav_data, int wav_len, void **r_data, int *r_size,
-    short *r_channels, short *r_bps, int *r_freq) {
-	int i, l;
-	char *data, *name;
-
-	data = (char *) wav_data;
-	if(memcmp(data, "RIFF", 4 * sizeof(char)) != 0) {
-		return -1;
-	}
-
-	if(memcmp(data + 8, "WAVE", 4 * sizeof(char)) != 0) {
-		return -1;
-	}
-
-	for(i = 12; i < wav_len;) {
-		name = malloc(sizeof(char) * 5);
-		memcpy(name, data + i, 4 * sizeof(char));
-		name[4] = '\0';
-		i += 4;
-
-		l = ((int *) (data + i))[0];
-		i += 4;
-
-		printf("Chunk! Name: '%s', length: %d\n", name, l);
-
-		if(memcmp(name, "fmt ", 4 * sizeof(char)) == 0) {
-			printf("Analyzing format data...\n");
-			printf("Format: %d\n", ((short *) (data + i))[0]);
-			if(((short *) (data + i))[0] != 1) {
-				printf("Invalid wav format!\n");
-				return -2;
-			}
-			*r_channels = ((short *) (data + i + 2))[0];
-			*r_freq = ((int *) (data + i + 4))[0];
-			*r_bps = ((short *) (data + i + 14))[0];
-		}
-		else if(memcmp(name, "data", 4 * sizeof(char)) == 0) {
-			printf("Data field!\n");
-			*r_size = l;
-			*r_data = data + i;
-		}
-
-		i += l;
-
-		free(name);
-	}
-
-	return 0;
 }

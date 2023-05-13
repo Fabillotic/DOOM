@@ -6,9 +6,12 @@ USE_OPENGL=1
 # uncomment to switch to OpenGL2 instead of the default version 3.3
 # GL2=1
 
+# comment out to disable FluidSynth
+USE_FLUIDSYNTH=1
+
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
 LDFLAGS=-L/usr/X11R6/lib
-LIBS=-lX11 -lm -lopenal -lfluidsynth -lpthread
+LIBS=-lX11 -lm -lopenal -lpthread
 
 # subdirectory for objects
 O=linux
@@ -96,6 +99,11 @@ ifdef USE_OPENGL
 ifdef GL2
 	CFLAGS += -DGL2
 endif
+endif
+
+ifdef USE_FLUIDSYNTH
+	CFLAGS += -DFLUIDSYNTH
+	LIBS += -lfluidsynth
 endif
 
 all:	 $(O)/$(BIN)
