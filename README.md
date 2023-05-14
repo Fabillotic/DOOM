@@ -35,8 +35,6 @@ I recommend you buy a copy of the original game through Steam.
 ### Part 1: Basics
 
 1. Clone the code
-2. Decide whether you want to use built-in FluidSynth (recommended) or ALSA SEQ for MIDI playback
-
 
 ### Part 2: Setting up the music
 
@@ -44,19 +42,13 @@ I recommend you buy a copy of the original game through Steam.
 
 1. Edit the `SOUNDFONT=` line in the `Makefile` to point to the soundfont you wish to use
 2. Make sure the line `USE_FLUIDSYNTH=1` is not commented out (so make sure that it does not have a hashtag in front of it)
-3. Make sure that the line `USE_ALSA_SEQ=1` is commented out (make sure it does have a hashtag at the front)
+3. Make sure that the `MUSIC_TYPE` is set to `fluidsynth`.
 
 #### - ALSA_SEQ:
 
 1. Edit the `MIDI_PORT=` line in the `Makefile` to the MIDI port that your MIDI synthesizer uses (You can find the connected MIDI device ports by running `aplaymidi -l`)
-2. Make sure the line `USE_FLUIDSYNTH=1` is commented out (so make sure that it does have a hashtag in front of it)
-3. Make sure the line `USE_ALSA_SEQ=1` is not commented out (make sure it does not have a hashtag at the front)
-
-#### - Compiling without music
-
-1. Reconsider (because the DOOM soundtrack is incredible)
-2. Make sure that both `USE_FLUIDSYNTH=1` and `USE_ALSA_SEQ=1` are commented out and so have hashtags at the front of the line
-
+2. Make sure the line `USE_ALSA_SEQ=1` is not commented out (so make sure that it does not have a hashtag in front of it)
+3. Make sure that the `MUSIC_TYPE` is set to `alsa_seq`.
 
 ### Part 3: Compiling and running
 
