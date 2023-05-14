@@ -38,7 +38,7 @@ I recommend you buy a copy of the original game through Steam.
 
 ### Part 2: Setting up the music
 
-#### - FluidSynth (default):
+#### - FluidSynth (recommended):
 
 1. Edit the `SOUNDFONT=` line in the `Makefile` to point to the soundfont you wish to use
 2. Make sure the line `USE_FLUIDSYNTH=1` is not commented out (so make sure that it does not have a hashtag in front of it)
