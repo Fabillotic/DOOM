@@ -1,18 +1,6 @@
+##### Basic variables #####
+
 CC=gcc # gcc or g++
-
-# comment out to disable OpenGL
-USE_OPENGL=1
-
-# uncomment to switch to OpenGL2 instead of the default version 3.3
-# GL2=1
-
-# comment out to disable FluidSynth
-USE_FLUIDSYNTH=1
-
-# uncomment to enable ALSA midi playback
-# USE_ALSA_SEQ=1
-
-MIDI_PORT=128:0
 
 CFLAGS=-g -Wall -DNORMALUNIX -DLINUX -DFPSMOVE -DIGNORE_DEMO_VERSION # -DJOYTEST # -DUSEASM
 LDFLAGS=-L/usr/X11R6/lib
@@ -24,15 +12,41 @@ O=linux
 # subdirectory for sources
 SRC=src
 
+BIN=linuxxdoom
+
+
+##### Run task options #####
+
 # subdirectory for wadfiles
 WADS=wads
 
-# soundfont for music
+# what music player to use when running (fluidsynth / alsa_seq)
+MUSIC_TYPE=fluidsynth
+
+# soundfont for FluidSynth music
 SOUNDFONT="/usr/share/soundfonts/Roland SC-55 v3.7.sf2"
 
-BIN=linuxxdoom
+# set your MIDI output port here
+MIDI_PORT=128:0
 
-# not too sophisticated dependency
+
+##### Compilation flags #####
+
+# comment out to disable OpenGL
+USE_OPENGL=1
+
+# uncomment to switch to OpenGL2 instead of the default version 3.3
+# GL2=1
+
+# comment out to compile without FluidSynth
+USE_FLUIDSYNTH=1
+
+# comment out to compile without ALSA midi playback
+USE_ALSA_SEQ=1
+
+
+##### Objects #####
+
 OBJS=					\
 		$(O)/doomdef.o		\
 		$(O)/doomstat.o		\
@@ -97,6 +111,9 @@ OBJS=					\
 		$(O)/sounds.o		\
 		$(O)/i_main.o
 
+
+##### Library logic #####
+
 ifdef USE_OPENGL
 	CFLAGS += -DOPENGL
 	LIBS += -lGL -lGLEW
@@ -116,6 +133,9 @@ ifdef USE_ALSA_SEQ
 	LIBS += -lasound
 endif
 
+
+##### Tasks #####
+
 all:	 $(O)/$(BIN)
 
 clean:
@@ -132,7 +152,7 @@ $(O)/%.o: $(SRC)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(O)/$(BIN)
-	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3 -port $(MIDI_PORT)
+	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3 -port $(MIDI_PORT) -music $(MUSIC_TYPE)
 
 debug: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) gdb ./$(O)/$(BIN)

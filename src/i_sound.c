@@ -29,10 +29,6 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 
-#if defined (FLUIDSYNTH) && defined (ALSA_SEQ)
-#error "FLUIDSYNTH and ALSA_SEQ cannot both be defined!"
-#endif
-
 #ifdef FLUIDSYNTH
 #include <fluidsynth.h>
 #endif
@@ -93,12 +89,20 @@ int music_ticks;
 int song_play;
 int music_loop;
 
-pthread_t music_thread;
+int fluidsynth_enabled;
+int alsa_seq_enabled;
+
+#define MUSIC_THREAD_COUNT 2
+#define FLUIDSYNTH_THREAD_NUM 0
+#define ALSA_SEQ_THREAD_NUM 1
+
+pthread_t music_threads[MUSIC_THREAD_COUNT];
 volatile sig_atomic_t music_stop;
 
 void *getsfx(char *sfxname, int *len);
 mus_event_t *parse_data(char *data);
 unsigned char get_midi_channel(unsigned char channel);
+void join_music_threads();
 
 #ifdef ALSA_SEQ
 void* play_midi(void* args);
@@ -154,7 +158,7 @@ void I_InitSound() {
 }
 
 void I_InitMusic() {
-	int p;
+	int i, p;
 #ifdef FLUIDSYNTH
 	fluid_settings_t *settings;
 #endif
@@ -162,59 +166,82 @@ void I_InitMusic() {
 	int client, port;
 #endif
 
+	fluidsynth_enabled = 0;
+	alsa_seq_enabled = 0;
+
 #ifdef FLUIDSYNTH
-	soundfont = getenv("SOUNDFONT");
-	if(!soundfont) {
-		if((p = M_CheckParm("-soundfont"))) {
-			if(p < myargc - 1) {
-				soundfont = myargv[p + 1];
+	if((p = M_CheckParm("-music"))) {
+		if(p < myargc - 1) {
+			if(!strcmp(myargv[p + 1], "fluidsynth")) {
+				fluidsynth_enabled = 1;
 			}
 		}
 	}
-	if(!soundfont) {
-		printf("No soundfont found!\n");
-		I_Quit();
+
+	if(fluidsynth_enabled) {
+		soundfont = getenv("SOUNDFONT");
+		if(!soundfont) {
+			if((p = M_CheckParm("-soundfont"))) {
+				if(p < myargc - 1) {
+					soundfont = myargv[p + 1];
+				}
+			}
+		}
+		if(!soundfont) {
+			printf("No soundfont found!\n");
+			I_Quit();
+		}
+		if(access(soundfont, F_OK)) {
+			printf("Could not open soundfont!\n");
+			I_Quit();
+		}
+
+		settings = new_fluid_settings();
+		fluid_settings_setnum(settings, "synth.sample-rate", (float) SAMPLERATE);
+
+		fsynth = new_fluid_synth(settings);
+
+		fluid_synth_sfload(fsynth, soundfont, 1);
 	}
-	if(access(soundfont, F_OK)) {
-		printf("Could not open soundfont!\n");
-		I_Quit();
-	}
-
-	settings = new_fluid_settings();
-	fluid_settings_setnum(settings, "synth.sample-rate", (float) SAMPLERATE);
-
-	fsynth = new_fluid_synth(settings);
-
-	fluid_synth_sfload(fsynth, soundfont, 1);
 #endif
 
 #ifdef ALSA_SEQ
-	client = -1;
-	if((p = M_CheckParm("-port"))) {
+	if((p = M_CheckParm("-music"))) {
 		if(p < myargc - 1) {
-			if(parse_midi_port(myargv[p + 1], &client, &port) < 0) {
-				printf("Invalid MIDI port!\n");
-				I_Quit();
+			if(!strcmp(myargv[p + 1], "alsa_seq")) {
+				alsa_seq_enabled = 1;
 			}
 		}
 	}
 
-	if(client < 0) {
-		printf("MIDI port required!\n");
-		I_Quit();
+	if(alsa_seq_enabled) {
+		client = -1;
+		if((p = M_CheckParm("-port"))) {
+			if(p < myargc - 1) {
+				if(parse_midi_port(myargv[p + 1], &client, &port) < 0) {
+					printf("Invalid MIDI port!\n");
+					I_Quit();
+				}
+			}
+		}
+
+		if(client < 0) {
+			printf("MIDI port required!\n");
+			I_Quit();
+		}
+
+		printf("Using MIDI port %d:%d!\n", client, port);
+
+		snd_seq_open(&seq, "default", SND_SEQ_OPEN_OUTPUT, 0);
+		snd_seq_set_client_name(seq, "DOOM");
+		midi_port = snd_seq_create_simple_port(seq, "output", SND_SEQ_PORT_CAP_READ, SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+		snd_seq_connect_to(seq, midi_port, client, port);
 	}
-
-	printf("Using MIDI port %d:%d!\n", client, port);
-
-	snd_seq_open(&seq, "default", SND_SEQ_OPEN_OUTPUT, 0);
-	snd_seq_set_client_name(seq, "DOOM");
-	midi_port = snd_seq_create_simple_port(seq, "output", SND_SEQ_PORT_CAP_READ, SND_SEQ_PORT_TYPE_MIDI_GENERIC);
-	snd_seq_connect_to(seq, midi_port, client, port);
 #endif
 
 	alGenSources(1, &music_source);
 
-	music_thread = NULL;
+	for(i = 0; i < MUSIC_THREAD_COUNT; i++) music_threads[i] = NULL;
 }
 
 void I_SetChannels() {
@@ -332,13 +359,7 @@ void I_ShutdownSound() {
 void I_ShutdownMusic() {
 	printf("I_ShutdownMusic!\n");
 
-	if(music_thread) {
-		music_stop = 1;
-		printf("Waiting for music thread to stop...\n");
-		pthread_join(music_thread, NULL);
-		printf("Music thread stopped!\n");
-		music_thread = NULL;
-	}
+	join_music_threads();
 
 #ifdef FLUIDSYNTH
 	if(fsequencer) delete_fluid_sequencer(fsequencer);
@@ -394,13 +415,7 @@ int I_RegisterSong(void *data) {
 
 	printf("I_RegisterSong!\n");
 
-	if(music_thread) {
-		music_stop = 1;
-		printf("Waiting for music thread to stop...\n");
-		pthread_join(music_thread, NULL);
-		printf("Music thread stopped!\n");
-		music_thread = NULL;
-	}
+	join_music_threads();
 
 #ifdef FLUIDSYNTH
 	if(fsequencer) {
@@ -419,25 +434,45 @@ int I_RegisterSong(void *data) {
 	events = parse_data(data);
 
 #ifdef FLUIDSYNTH
-	fsequencer = new_fluid_sequencer2(0);
-	fluid_synth_system_reset(fsynth);
+	if(fluidsynth_enabled) {
+		fsequencer = new_fluid_sequencer2(0);
+		fluid_synth_system_reset(fsynth);
 
-	music_ticks = sequence(events, fsynth, fsequencer);
+		music_ticks = sequence(events, fsynth, fsequencer);
+	}
 #endif
 
 	song_play = 0;
 	music_stop = 0;
 
 #ifdef FLUIDSYNTH
-	pthread_create(&music_thread, NULL, synthesize, NULL);
+	if(fluidsynth_enabled) {
+		pthread_create(music_threads + FLUIDSYNTH_THREAD_NUM, NULL, synthesize, NULL);
+	}
 #endif
 
 #ifdef ALSA_SEQ
-	send_alsa_seq_reset();
-	pthread_create(&music_thread, NULL, play_midi, events);
+	if(alsa_seq_enabled) {
+		send_alsa_seq_reset();
+		pthread_create(music_threads + ALSA_SEQ_THREAD_NUM, NULL, play_midi, events);
+	}
 #endif
 
 	return SONG;
+}
+
+void join_music_threads() {
+	int i;
+
+	music_stop = 1;
+	for(i = 0; i < MUSIC_THREAD_COUNT; i++) {
+		if(music_threads[i]) {
+			printf("Waiting for music thread %d to stop...\n", i);
+			pthread_join(music_threads[i], NULL);
+			printf("Music thread stopped!\n");
+			music_threads[i] = NULL;
+		}
+	}
 }
 
 #ifdef FLUIDSYNTH
