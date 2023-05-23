@@ -142,6 +142,8 @@ void I_Error(char *error, ...) {
 	if(demorecording) G_CheckDemoStatus();
 
 	D_QuitNetGame();
+	I_ShutdownSound();
+	I_ShutdownMusic();
 	I_ShutdownGraphics();
 
 	exit(-1);
