@@ -21,9 +21,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#ifdef JOYSTICK
+#include <linux/input.h>
+#include <linux/joystick.h>
+#endif
 #ifdef OPENGL
 #include <GL/glew.h>
 #include <GL/glxew.h>
@@ -68,17 +74,23 @@ int fullscreen;
 
 #ifdef JOYTEST
 int joytest[8];
-#define JOY_FORWARD 't'
-#define JOY_LEFT 'f'
-#define JOY_BACK 'g'
-#define JOY_RIGHT 'h'
-#define JOY_FIRE 'c'
-#define JOY_STRAFE 'v'
-#define JOY_USE 'b'
-#define JOY_SPEED 'n'
+#define JOYTEST_FORWARD 't'
+#define JOYTEST_LEFT 'f'
+#define JOYTEST_BACK 'g'
+#define JOYTEST_RIGHT 'h'
+#define JOYTEST_FIRE 'c'
+#define JOYTEST_STRAFE 'v'
+#define JOYTEST_USE 'b'
+#define JOYTEST_SPEED 'n'
 #endif
 
-#define EVENTMASK (ExposureMask | KeyPressMask | KeyReleaseMask | StructureNotifyMask | FocusChangeMask)
+#ifdef JOYSTICK
+struct JS_DATA_TYPE joystick;
+int joystick_fd;
+#endif
+
+#define EVENTMASK (ExposureMask | KeyPressMask | KeyReleaseMask \
+		| StructureNotifyMask | FocusChangeMask)
 #define POINTERMASK (ButtonPressMask | ButtonReleaseMask | PointerMotionMask)
 
 void make_image();
@@ -145,7 +157,10 @@ void I_InitGraphics() {
 	atts = (XSetWindowAttributes){
 	    .event_mask = EVENTMASK,
 	    .override_redirect = False};
-	window = XCreateWindow(display, root, 0, 0, wwidth, wheight, 0, CopyFromParent, InputOutput, CopyFromParent, CWEventMask | CWOverrideRedirect, &atts);
+	window = XCreateWindow(display, root, 0, 0, wwidth, wheight, 0,
+		CopyFromParent, InputOutput, CopyFromParent,
+		CWEventMask | CWOverrideRedirect, &atts
+	);
 	XSync(display, False);
 #endif
 
@@ -153,8 +168,12 @@ void I_InitGraphics() {
 
 	if(fullscreen) {
 		wm_state = XInternAtom(display, "_NET_WM_STATE", True);
-		wm_fullscreen = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", True);
-		XChangeProperty(display, window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*) &wm_fullscreen, 1);
+		wm_fullscreen = XInternAtom(display,
+			"_NET_WM_STATE_FULLSCREEN", True
+		);
+		XChangeProperty(display, window, wm_state, XA_ATOM, 32,
+			PropModeReplace, (unsigned char*) &wm_fullscreen, 1
+		);
 	}
 
 	XClassHint *class_hint;
@@ -171,7 +190,9 @@ void I_InitGraphics() {
 
 #ifdef OPENGL
 	int r;
-	XVisualInfo *visual_info = XGetVisualInfo(display, VisualIDMask | VisualScreenMask | VisualDepthMask, visual_temp, &r);
+	XVisualInfo *visual_info = XGetVisualInfo(display, VisualIDMask \
+		| VisualScreenMask | VisualDepthMask, visual_temp, &r
+	);
 	printf("visual_info: %p\nr: %d\n", visual_info, r);
 	free(visual_temp);
 
@@ -195,7 +216,10 @@ void I_InitGraphics() {
 		layout(location = 1) in vec2 tex;\n\
 		uniform vec2 aspect_scale;\n\
 		out vec2 uv;\n\
-		void main() {gl_Position = vec4(pos * aspect_scale, 0.0, 1.0);uv = tex;}\n\
+		void main() {\n\
+			gl_Position = vec4(pos * aspect_scale, 0.0, 1.0);\n\
+			uv = tex;\n\
+		}\n\
 		",
 		NULL,
 		"#version 330 core\n\
@@ -247,8 +271,20 @@ void I_InitGraphics() {
 	XSelectInput(display, window, EVENTMASK);
 
 	create_empty_cursor();
+
 #ifdef JOYTEST
 	memset(joytest, 0, 8 * sizeof(int));
+#endif
+
+#ifdef JOYSTICK
+	memset(&joystick, 0, sizeof(struct JS_DATA_TYPE));
+
+	joystick_fd = open("/dev/input/js1", O_RDONLY);
+	if(joystick_fd < 0) {
+		printf("Failed to open joystick!\n");
+		return;
+	}
+
 #endif
 
 	printf("Allocating screen buffer, image buffer and palette.\n");
@@ -358,21 +394,30 @@ void I_FinishUpdate() {
 
 			if(x == SCREENWIDTH || y == SCREENHEIGHT) continue;
 
-			image_data[i * 4 + 0] =
-			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 2];
-			image_data[i * 4 + 1] =
-			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 1];
-			image_data[i * 4 + 2] =
-			    palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0];
+			image_data[i * 4 + 0] = palette[
+				((int) screens[0][x + SCREENWIDTH * y]) * 3 + 2
+			];
+			image_data[i * 4 + 1] = palette[
+				((int) screens[0][x + SCREENWIDTH * y]) * 3 + 1
+			];
+			image_data[i * 4 + 2] = palette[
+				((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0
+			];
 		}
 	}
 #else
 	for(i = 0; i < SCREENWIDTH * SCREENHEIGHT; i++) {
 		x = i % SCREENWIDTH;
 		y = i / SCREENWIDTH;
-		image_data[i * 3 + 0] = palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 2];
-		image_data[i * 3 + 1] = palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 1];
-		image_data[i * 3 + 2] = palette[((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0];
+		image_data[i * 3 + 0] = palette[
+			((int) screens[0][x + SCREENWIDTH * y]) * 3 + 2
+		];
+		image_data[i * 3 + 1] = palette[
+			((int) screens[0][x + SCREENWIDTH * y]) * 3 + 1
+		];
+		image_data[i * 3 + 2] = palette[
+			((int) screens[0][x + SCREENWIDTH * y]) * 3 + 0
+		];
 	}
 #endif
 
@@ -391,12 +436,16 @@ void I_FinishUpdate() {
 
 #ifndef GL2
 	glUseProgram(shader);
-	glUniform2f(glGetUniformLocation(shader, "aspect_scale"), aspect_scale_x, aspect_scale_y);
+	glUniform2f(glGetUniformLocation(shader, "aspect_scale"),
+		aspect_scale_x, aspect_scale_y
+	);
 #else
 	glEnable(GL_TEXTURE_2D);
 #endif
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCREENWIDTH, SCREENHEIGHT, 0, GL_BGR, GL_UNSIGNED_BYTE, image_data);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCREENWIDTH, SCREENHEIGHT, 0,
+		GL_BGR, GL_UNSIGNED_BYTE, image_data
+	);
 
 #ifndef GL2
 	glEnableVertexAttribArray(0);
@@ -447,66 +496,66 @@ void I_StartTic() {
 	char buf[256];
 	KeySym sym;
 
+#ifdef JOYSTICK
+	struct JS_DATA_TYPE js_data;
+#endif
+
 	while(XPending(display)) {
 		XNextEvent(display, &ev);
 
 		if(ev.type == KeyPress) {
 			d_event.type = ev_keydown;
-			ev.xkey.state =
-			    ev.xkey.state & (~(ControlMask | LockMask | ShiftMask));
+			ev.xkey.state = ev.xkey.state &
+				(~(ControlMask | LockMask | ShiftMask));
 			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
 
 #ifdef JOYTEST
-			if(d_event.data1 == JOY_FORWARD) joytest[0] = 1;
-			else if(d_event.data1 == JOY_LEFT) joytest[1] = 1;
-			else if(d_event.data1 == JOY_BACK) joytest[2] = 1;
-			else if(d_event.data1 == JOY_RIGHT) joytest[3] = 1;
-			else if(d_event.data1 == JOY_FIRE) joytest[4] = 1;
-			else if(d_event.data1 == JOY_STRAFE) joytest[5] = 1;
-			else if(d_event.data1 == JOY_USE) joytest[6] = 1;
-			else if(d_event.data1 == JOY_SPEED) joytest[7] = 1;
+			if(d_event.data1 == JOYTEST_FORWARD) joytest[0] = 1;
+			else if(d_event.data1 == JOYTEST_LEFT) joytest[1] = 1;
+			else if(d_event.data1 == JOYTEST_BACK) joytest[2] = 1;
+			else if(d_event.data1 == JOYTEST_RIGHT) joytest[3] = 1;
+			else if(d_event.data1 == JOYTEST_FIRE) joytest[4] = 1;
+			else if(d_event.data1 == JOYTEST_STRAFE) joytest[5] = 1;
+			else if(d_event.data1 == JOYTEST_USE) joytest[6] = 1;
+			else if(d_event.data1 == JOYTEST_SPEED) joytest[7] = 1;
 
 			d_event.type = ev_joystick;
-			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) |
-			                (joytest[7] << 3);
-			d_event.data2 =
-			    (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
-			d_event.data3 =
-			    (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
-			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
-			    d_event.data1, d_event.data2, d_event.data3);
+			d_event.data1 = joytest[4] | (joytest[5] << 1) |
+				(joytest[6] << 2) | (joytest[7] << 3);
+			d_event.data2 = (joytest[1] ^ joytest[3]) ?
+				(joytest[3] * 2 - 1) : 0;
+			d_event.data3 = (joytest[0] ^ joytest[2]) ?
+				(joytest[2] * 2 - 1) : 0;
 			D_PostEvent(&d_event);
 #endif
 		}
 		else if(ev.type == KeyRelease) {
 			d_event.type = ev_keyup;
-			ev.xkey.state =
-			    ev.xkey.state & (~(ControlMask | LockMask | ShiftMask));
+			ev.xkey.state = ev.xkey.state &
+				(~(ControlMask | LockMask | ShiftMask));
 			XLookupString(&ev.xkey, buf, 256, &sym, NULL);
 			d_event.data1 = xlatekey(sym);
 			D_PostEvent(&d_event);
 
 #ifdef JOYTEST
-			if(d_event.data1 == JOY_FORWARD) joytest[0] = 0;
-			else if(d_event.data1 == JOY_LEFT) joytest[1] = 0;
-			else if(d_event.data1 == JOY_BACK) joytest[2] = 0;
-			else if(d_event.data1 == JOY_RIGHT) joytest[3] = 0;
-			else if(d_event.data1 == JOY_FIRE) joytest[4] = 0;
-			else if(d_event.data1 == JOY_STRAFE) joytest[5] = 0;
-			else if(d_event.data1 == JOY_USE) joytest[6] = 0;
-			else if(d_event.data1 == JOY_SPEED) joytest[7] = 0;
+			if(d_event.data1 == JOYTEST_FORWARD) joytest[0] = 0;
+			else if(d_event.data1 == JOYTEST_LEFT) joytest[1] = 0;
+			else if(d_event.data1 == JOYTEST_BACK) joytest[2] = 0;
+			else if(d_event.data1 == JOYTEST_RIGHT) joytest[3] = 0;
+			else if(d_event.data1 == JOYTEST_FIRE) joytest[4] = 0;
+			else if(d_event.data1 == JOYTEST_STRAFE) joytest[5] = 0;
+			else if(d_event.data1 == JOYTEST_USE) joytest[6] = 0;
+			else if(d_event.data1 == JOYTEST_SPEED) joytest[7] = 0;
 
 			d_event.type = ev_joystick;
-			d_event.data1 = joytest[4] | (joytest[5] << 1) | (joytest[6] << 2) |
-			                (joytest[7] << 3);
-			d_event.data2 =
-			    (joytest[1] ^ joytest[3]) ? (joytest[3] * 2 - 1) : 0;
-			d_event.data3 =
-			    (joytest[0] ^ joytest[2]) ? (joytest[2] * 2 - 1) : 0;
-			printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
-			    d_event.data1, d_event.data2, d_event.data3);
+			d_event.data1 = joytest[4] | (joytest[5] << 1) |
+				(joytest[6] << 2) | (joytest[7] << 3);
+			d_event.data2 = (joytest[1] ^ joytest[3]) ?
+				(joytest[3] * 2 - 1) : 0;
+			d_event.data3 = (joytest[0] ^ joytest[2]) ?
+				(joytest[2] * 2 - 1) : 0;
 			D_PostEvent(&d_event);
 #endif
 		}
@@ -531,11 +580,16 @@ void I_StartTic() {
 			d_event.type = ev_mouse;
 
 			d_event.data1 = ((ev.xbutton.state & Button1Mask) > 0);
-			d_event.data1 |= ((ev.xbutton.state & Button2Mask) > 0) << 1;
-			d_event.data1 |= ((ev.xbutton.state & Button3Mask) > 0) << 2;
-			if(ev.xbutton.button == Button1) d_event.data1 &= ~(1 << 0);
-			if(ev.xbutton.button == Button2) d_event.data1 &= ~(1 << 1);
-			if(ev.xbutton.button == Button3) d_event.data1 &= ~(1 << 2);
+			d_event.data1 |=
+				((ev.xbutton.state & Button2Mask) > 0) << 1;
+			d_event.data1 |=
+				((ev.xbutton.state & Button3Mask) > 0) << 2;
+			if(ev.xbutton.button == Button1)
+				d_event.data1 &= ~(1 << 0);
+			if(ev.xbutton.button == Button2)
+				d_event.data1 &= ~(1 << 1);
+			if(ev.xbutton.button == Button3)
+				d_event.data1 &= ~(1 << 2);
 
 			d_event.data2 = 0;
 			d_event.data3 = 0;
@@ -546,20 +600,29 @@ void I_StartTic() {
 			if(!in_menu()) {
 				d_event.type = ev_mouse;
 
-				d_event.data1 = ((ev.xmotion.state & Button1Mask) > 0);
-				d_event.data1 |= ((ev.xmotion.state & Button2Mask) > 0) << 1;
-				d_event.data1 |= ((ev.xmotion.state & Button3Mask) > 0) << 2;
+				d_event.data1 =
+					((ev.xmotion.state & Button1Mask) > 0);
+				d_event.data1 |= (
+					(ev.xmotion.state & Button2Mask) > 0)
+					<< 1;
+				d_event.data1 |=
+					((ev.xmotion.state & Button3Mask) > 0)
+					<< 2;
 
-				d_event.data2 = (ev.xmotion.x - wwidth / 2) << 1;
-				d_event.data3 = (wheight / 2 - ev.xmotion.y) << 1;
+				d_event.data2 =
+					(ev.xmotion.x - wwidth / 2) << 1;
+				d_event.data3 =
+					(wheight / 2 - ev.xmotion.y) << 1;
 				if(d_event.data2 || d_event.data3) {
 					D_PostEvent(&d_event);
 				}
 			}
 			else {
 				screencoords(&dx, &dy, &dw, &dh);
-				x = (int) (((float) (ev.xmotion.x - dx)) / dw * SCREENWIDTH);
-				y = (int) (((float) (ev.xmotion.y - dy)) / dh * SCREENHEIGHT);
+				x = (int) (((float) (ev.xmotion.x - dx))
+					/ dw * SCREENWIDTH);
+				y = (int) (((float) (ev.xmotion.y - dy))
+					/ dh * SCREENHEIGHT);
 				M_SelectItemByPosition(x, y);
 			}
 		}
@@ -572,13 +635,13 @@ void I_StartTic() {
 			glViewport(0, 0, wwidth, wheight);
 #endif
 		}
-		else if(ev.type == FocusIn) {
-			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
+		else if(ev.type == FocusIn && ev.xfocus.mode == NotifyNormal) {
+			if(ev.xfocus.window == window) {
 				if(!in_menu()) grab_mouse();
 			}
 		}
-		else if(ev.type == FocusOut) {
-			if(ev.xfocus.window == window && ev.xfocus.mode == NotifyNormal) {
+		else if(ev.type == FocusOut && ev.xfocus.mode == NotifyNormal) {
+			if(ev.xfocus.window == window) {
 				release_mouse();
 			}
 		}
@@ -588,13 +651,38 @@ void I_StartTic() {
 			release_mouse();
 		}
 		else {
-			XWarpPointer(display, None, window, 0, 0, 0, 0, wwidth / 2, wheight / 2);
+			XWarpPointer(display, None, window, 0, 0, 0, 0,
+				wwidth / 2, wheight / 2
+			);
 			XSync(display, False);
 		}
 	}
 	else {
 		if(!in_menu()) grab_mouse();
 	}
+
+#ifdef JOYSTICK
+	read(joystick_fd, &js_data, JS_RETURN);
+
+	if(
+		js_data.x != joystick.x ||
+		js_data.y != joystick.y ||
+		js_data.buttons != joystick.buttons
+	) {
+		d_event.type = ev_joystick;
+		d_event.data1 = js_data.buttons & 1;
+		d_event.data2 = js_data.x < 128 ? -1 : (js_data.x > 128);
+		d_event.data3 = js_data.y < 128 ? -1 : (js_data.y > 128);
+		d_event.data3 = -d_event.data3;
+		printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
+		    d_event.data1, d_event.data2, d_event.data3);
+		D_PostEvent(&d_event);
+
+		joystick.x = js_data.x;
+		joystick.y = js_data.y;
+		joystick.buttons = js_data.buttons;
+	}
+#endif
 }
 
 void I_StartFrame() {
@@ -679,7 +767,8 @@ int xlatekey(KeySym sym) {
 	case XK_Meta_R: rc = KEY_RALT; break;
 
 	default:
-		if(sym >= XK_space && sym <= XK_asciitilde) rc = sym - XK_space + ' ';
+		if(sym >= XK_space && sym <= XK_asciitilde)
+			rc = sym - XK_space + ' ';
 		if(sym >= 'A' && sym <= 'Z') rc = sym - 'A' + 'a';
 		break;
 	}
