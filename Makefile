@@ -6,7 +6,7 @@ CFLAGS=-g -Wall \
 	-DNORMALUNIX -DLINUX \
 	-DFPSMOVE \
 	-DIGNORE_DEMO_VERSION \
-	-DJOYSTICK \
+	-DJOYSTICK
 	# -DJOYTEST
 LDFLAGS=-L/usr/X11R6/lib
 LIBS=-lX11 -lm -lopenal -lpthread
@@ -34,6 +34,8 @@ SOUNDFONT="/usr/share/soundfonts/Roland SC-55 v3.7.sf2"
 # set your MIDI output port here
 MIDI_PORT=128:0
 
+#set your Joystick path here
+JOYSTICK=/dev/input/js1
 
 ##### Compilation flags #####
 
@@ -157,7 +159,8 @@ $(O)/%.o: $(SRC)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(O)/$(BIN)
-	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3 -port $(MIDI_PORT) -music $(MUSIC_TYPE)
+	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3 \
+		-port $(MIDI_PORT) -music $(MUSIC_TYPE) -joystick $(JOYSTICK)
 
 debug: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) gdb ./$(O)/$(BIN)

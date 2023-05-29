@@ -106,7 +106,7 @@ void I_InitGraphics() {
 	XEvent ev;
 	XGCValues vals;
 	Atom wm_state, wm_fullscreen;
-	int screen;
+	int screen, p;
 
 	display = XOpenDisplay(NULL);
 	if(!display) {
@@ -279,10 +279,14 @@ void I_InitGraphics() {
 #ifdef JOYSTICK
 	memset(&joystick, 0, sizeof(struct JS_DATA_TYPE));
 
-	joystick_fd = open("/dev/input/js1", O_RDONLY);
+	joystick_fd = -1;
+	if((p = M_CheckParm("-joystick"))) {
+		if(p < myargc - 1) {
+			joystick_fd = open(myargv[p + 1], O_RDONLY);
+		}
+	}
 	if(joystick_fd < 0) {
 		printf("Failed to open joystick!\n");
-		return;
 	}
 
 #endif
@@ -662,20 +666,20 @@ void I_StartTic() {
 	}
 
 #ifdef JOYSTICK
-	read(joystick_fd, &js_data, JS_RETURN);
+	if(joystick_fd > 0) read(joystick_fd, &js_data, JS_RETURN);
 
-	if(
+	if(joystick_fd > 0 && (
 		js_data.x != joystick.x ||
 		js_data.y != joystick.y ||
 		js_data.buttons != joystick.buttons
-	) {
+	)) {
 		d_event.type = ev_joystick;
-		d_event.data1 = js_data.buttons & 1;
+		d_event.data1 = js_data.buttons;
 		d_event.data2 = js_data.x < 128 ? -1 : (js_data.x > 128);
 		d_event.data3 = js_data.y < 128 ? -1 : (js_data.y > 128);
 		d_event.data3 = -d_event.data3;
-		printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
-		    d_event.data1, d_event.data2, d_event.data3);
+		/*printf("joystick! buttons: %d, x-axis: %d, y-axis: %d\n",
+		    d_event.data1, d_event.data2, d_event.data3);*/
 		D_PostEvent(&d_event);
 
 		joystick.x = js_data.x;
