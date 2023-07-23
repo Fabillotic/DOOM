@@ -2,6 +2,8 @@
 
 Modern linux version of DOOM
 
+## THIS BRANCH IS ABANDONED!! Just use XWayland, it works better anyways
+
 ## Major changes
 
 - X11 code rewrite
