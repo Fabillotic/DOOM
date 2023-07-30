@@ -113,7 +113,6 @@ void I_InitGraphics() {
 		printf("Couldn't connect to display!\n");
 		return;
 	}
-	printf("Got display!\n");
 
 	scale = 1;
 	if(M_CheckParm("-2")) scale = 2;
@@ -184,7 +183,6 @@ void I_InitGraphics() {
 
 	XStoreName(display, window, "DOOM");
 
-	printf("Mapping window...\n");
 	XMapWindow(display, window);
 	XSync(display, False);
 
@@ -193,15 +191,11 @@ void I_InitGraphics() {
 	XVisualInfo *visual_info = XGetVisualInfo(display, VisualIDMask \
 		| VisualScreenMask | VisualDepthMask, visual_temp, &r
 	);
-	printf("visual_info: %p\nr: %d\n", visual_info, r);
 	free(visual_temp);
 
 	context = glXCreateContext(display, visual_info, NULL, 1);
-	printf("context: %p\n", context);
 	glXMakeCurrent(display, window, context);
-	printf("make current\n");
 
-	glewExperimental=GL_TRUE;
 	int err = glewInit();
 	if(err != GLEW_OK) {
 		printf("%s\n", glewGetErrorString(err));
@@ -230,12 +224,8 @@ void I_InitGraphics() {
 		"
 	);
 
-	printf("shader: %d\n", shader);
-
 	glGenVertexArrays(1, &vertexArray);
 	glBindVertexArray(vertexArray);
-
-	printf("vertexArray: %d\n", vertexArray);
 
 	float data[] = {
 		//-1.0f, -1.0f, 1.0f, -1.0f, 0.0f, 1.0f
@@ -283,15 +273,15 @@ void I_InitGraphics() {
 	if((p = M_CheckParm("-joystick"))) {
 		if(p < myargc - 1) {
 			joystick_fd = open(myargv[p + 1], O_RDONLY);
+
+			if(joystick_fd < 0) {
+				printf("Failed to open joystick!\n");
+			}
 		}
-	}
-	if(joystick_fd < 0) {
-		printf("Failed to open joystick!\n");
 	}
 
 #endif
 
-	printf("Allocating screen buffer, image buffer and palette.\n");
 	screens[0] = (unsigned char *) malloc(
 	    SCREENWIDTH * SCREENHEIGHT); // Color index, 8-bit per pixel
 	palette = malloc(256 * 3);       // 256 entries, each of them 24-bit
@@ -306,7 +296,6 @@ void I_InitGraphics() {
 #endif
 
 	make_image();
-	printf("Finished initializing!\n");
 }
 
 void make_image() {
@@ -489,7 +478,6 @@ void I_FinishUpdate() {
 }
 
 void I_ReadScreen(byte *scr) {
-	printf("Reading screen...\n");
 	memcpy(scr, screens[0], SCREENWIDTH * SCREENHEIGHT);
 }
 
