@@ -160,7 +160,7 @@ $(O)/%.o: $(SRC)/%.c
 
 run: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) ./$(O)/$(BIN) -3 \
-		-port $(MIDI_PORT) -music $(MUSIC_TYPE) -joystick $(JOYSTICK)
+		-midi-port $(MIDI_PORT) -music $(MUSIC_TYPE) -joystick $(JOYSTICK)
 
 debug: $(O)/$(BIN)
 	SOUNDFONT=$(SOUNDFONT) DOOMWADDIR=$(WADS) gdb ./$(O)/$(BIN)

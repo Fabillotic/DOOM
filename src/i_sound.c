@@ -216,7 +216,7 @@ void I_InitMusic() {
 
 	if(alsa_seq_enabled) {
 		client = -1;
-		if((p = M_CheckParm("-port"))) {
+		if((p = M_CheckParm("-midi-port"))) {
 			if(p < myargc - 1) {
 				if(parse_midi_port(myargv[p + 1], &client, &port) < 0) {
 					printf("Invalid MIDI port!\n");
