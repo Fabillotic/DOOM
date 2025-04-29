@@ -445,7 +445,8 @@ void I_FinishUpdate() {
 	glEnableVertexAttribArray(1);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*) 0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, sizeof(float) * 12);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0,
+			(void*) (sizeof(float) * 12));
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glDisableVertexAttribArray(0);
 	glDisableVertexAttribArray(1);
