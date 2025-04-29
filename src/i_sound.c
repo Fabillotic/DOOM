@@ -92,11 +92,10 @@ int music_loop;
 int fluidsynth_enabled;
 int alsa_seq_enabled;
 
-#define MUSIC_THREAD_COUNT 2
-#define FLUIDSYNTH_THREAD_NUM 0
-#define ALSA_SEQ_THREAD_NUM 1
-
-pthread_t music_threads[MUSIC_THREAD_COUNT];
+pthread_t music_thread_fluid;
+pthread_t music_thread_alsa;
+int music_thread_fluid_running;
+int music_thread_alsa_running;
 volatile sig_atomic_t music_stop;
 
 void *getsfx(char *sfxname, int *len);
@@ -241,7 +240,8 @@ void I_InitMusic() {
 
 	alGenSources(1, &music_source);
 
-	for(i = 0; i < MUSIC_THREAD_COUNT; i++) music_threads[i] = NULL;
+	music_thread_fluid_running = 0;
+	music_thread_alsa_running = 0;
 }
 
 void I_SetChannels() {
@@ -447,14 +447,16 @@ int I_RegisterSong(void *data) {
 
 #ifdef FLUIDSYNTH
 	if(fluidsynth_enabled) {
-		pthread_create(music_threads + FLUIDSYNTH_THREAD_NUM, NULL, synthesize, NULL);
+		pthread_create(&music_thread_fluid, NULL, synthesize, NULL);
+		music_thread_fluid_running = 1;
 	}
 #endif
 
 #ifdef ALSA_SEQ
 	if(alsa_seq_enabled) {
 		send_alsa_seq_reset();
-		pthread_create(music_threads + ALSA_SEQ_THREAD_NUM, NULL, play_midi, events);
+		pthread_create(&music_thread_alsa, NULL, play_midi, events);
+		music_thread_alsa_running = 1;
 	}
 #endif
 
@@ -465,13 +467,15 @@ void join_music_threads() {
 	int i;
 
 	music_stop = 1;
-	for(i = 0; i < MUSIC_THREAD_COUNT; i++) {
-		if(music_threads[i]) {
-			printf("Waiting for music thread %d to stop...\n", i);
-			pthread_join(music_threads[i], NULL);
-			printf("Music thread stopped!\n");
-			music_threads[i] = NULL;
-		}
+	if(music_thread_fluid_running) {
+		printf("Waiting for fluidsynth thread to stop...\n");
+		pthread_join(music_thread_fluid, NULL);
+		music_thread_fluid_running = 0;
+	}
+	if(music_thread_alsa_running) {
+		printf("Waiting for alsa_seq thread to stop...\n");
+		pthread_join(music_thread_alsa, NULL);
+		music_thread_alsa_running = 0;
 	}
 }
 
