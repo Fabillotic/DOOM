@@ -2,7 +2,8 @@
 
 CC=gcc # gcc or g++
 
-CFLAGS=-g -Wall \
+CFLAGS=-g -Wall -std=c99 \
+        -D_DEFAULT_SOURCE \
 	-DNORMALUNIX -DLINUX \
 	-DFPSMOVE \
 	-DIGNORE_DEMO_VERSION \
