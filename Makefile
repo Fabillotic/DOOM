@@ -8,6 +8,7 @@ CFLAGS=-g -Wall -std=c99 \
 	-DFPSMOVE \
 	-DIGNORE_DEMO_VERSION \
 	-DJOYSTICK
+	# -DMOUSEMOVE
 	# -DJOYTEST
 LDFLAGS=-L/usr/X11R6/lib
 LIBS=-lX11 -lm -lopenal -lpthread

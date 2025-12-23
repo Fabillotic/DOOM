@@ -68,7 +68,11 @@ I recommend you buy a copy of the original game through Steam.
 
 ### Original movement
 
-You can go back to the original movement by disabling the `-DFPSMOVE` flag in the `Makefile` and running `make -B` to recompile.
+You can go back to the original movement by disabling the `-DFPSMOVE` flag in the `Makefile`.
+
+The old mouse movement can be enabled in the `Makefile` with the `-DMOUSEMOVE` flag.
+
+After changing the `Makefile`, run `make -B` to recompile.
 
 ## OpenGL
 

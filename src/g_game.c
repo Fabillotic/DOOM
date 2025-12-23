@@ -385,9 +385,11 @@ void G_BuildTiccmd(ticcmd_t *cmd) {
 		}
 	}
 
+#ifdef MOUSEMOVE
 	forward += mousey;
 	if(strafe) side += mousex * 2;
 	else cmd->angleturn -= mousex * 0x8;
+#endif
 #endif
 
 	mousex = mousey = 0;
